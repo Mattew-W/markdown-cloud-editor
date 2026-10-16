@@ -1,0 +1,27 @@
+# Compiled output
+/target/
+**/target/
+/dist/
+/build/
+node_modules/
+coverage/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Local databases and editor/OS files
+*.sqlite
+*.sqlite3
+*.db
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
