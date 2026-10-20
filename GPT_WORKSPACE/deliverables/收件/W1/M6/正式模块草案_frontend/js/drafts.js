@@ -343,7 +343,16 @@ export function listDrafts({ userId, docId } = {}, { storage = defaultStorage() 
 
     const read = readDraft(key, { storage });
     if (read.status === "ok") {
-      result.records.push(read.record);
+      const record = read.record;
+      if (
+        record[FIELDS.USER_ID] !== parsed.userId ||
+        record[FIELDS.DOC_ID] !== parsed.docId ||
+        record[FIELDS.EDIT_SESSION_ID] !== parsed.sessionId
+      ) {
+        result.corrupt += 1;
+      } else {
+        result.records.push(record);
+      }
     } else if (read.status === "corrupt") {
       if (read.error?.reason === "unavailable") throw read.error;
       result.corrupt += 1;
@@ -480,7 +489,9 @@ export function createDraftWriter({
     if (existing && clearTimer) clearTimer(existing.timer);
 
     // 合并：只保留最新记录，计时器重置
-    pending.set(key, { record, timer: null });
+    // Snapshot identity and content now; the caller may reuse or mutate its object.
+    const snapshot = { ...record };
+    pending.set(key, { record: snapshot, timer: null });
 
     if (setTimer) {
       const timer = setTimer(() => {
