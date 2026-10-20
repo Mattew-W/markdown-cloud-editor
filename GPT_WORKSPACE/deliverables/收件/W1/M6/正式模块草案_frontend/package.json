@@ -1,0 +1,16 @@
+{
+  "name": "markdown-cloud-editor-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "云同步 Markdown 编辑器前端（草案，尚未并入主项目仓库）",
+  "scripts": {
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "test:e2e": "echo \"E2E 尚未实现——按规范 §11:435 不得添加总是成功的占位脚本\" && exit 1",
+    "lint": "echo \"ESLint 尚未配置——待 M5 工具链 PR 就位\" && exit 1",
+    "format:check": "echo \"Prettier 尚未配置——待 M5 工具链 PR 就位\" && exit 1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
