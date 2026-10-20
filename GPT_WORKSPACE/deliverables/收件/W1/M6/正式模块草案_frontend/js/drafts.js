@@ -374,13 +374,25 @@ export function discardDraft(key, guard = {}, { storage = defaultStorage() } = {
 
   const record = read.record;
 
-  if (guard.sessionId !== undefined && record[FIELDS.EDIT_SESSION_ID] !== guard.sessionId) {
+  // Three values are required: partial guards must never authorize deletion.
+  if (
+    !guard ||
+    typeof guard !== "object" ||
+    typeof guard.sessionId !== "string" ||
+    guard.sessionId.length === 0 ||
+    !Number.isInteger(guard.localRevision) ||
+    typeof guard.content !== "string"
+  ) {
+    return { status: "mismatch", reason: "guard" };
+  }
+
+  if (record[FIELDS.EDIT_SESSION_ID] !== guard.sessionId) {
     return { status: "mismatch", reason: "session" };
   }
-  if (guard.localRevision !== undefined && record[FIELDS.LOCAL_REVISION] !== guard.localRevision) {
+  if (record[FIELDS.LOCAL_REVISION] !== guard.localRevision) {
     return { status: "mismatch", reason: "revision" };
   }
-  if (guard.content !== undefined && record[FIELDS.CONTENT] !== guard.content) {
+  if (record[FIELDS.CONTENT] !== guard.content) {
     return { status: "mismatch", reason: "content" };
   }
 
@@ -539,23 +551,27 @@ export function createDraftWriter({
  * 判定草稿与云端内容的关系。
  *
  * 规范 §08:378：
- *   1. 内容与云端相同则可确认；
+ *   1. 标题和内容均与云端相同则无需恢复；
  *   2. 云端版本等于草稿 base_version 则在用户确认后继续保存；
  *   3. 云端版本不同且内容不同则进入 conflict。
  *
  * 禁止为旧草稿直接替换成最新 base_version 后自动提交。
  *
  * @param {object} draft 草稿记录
- * @param {{version: number, content: string}|null} cloud 云端状态；null 表示读取失败或不可用
+ * @param {{version: number, title: string, content: string}|null} cloud 云端状态；null 表示读取失败或不可用
  * @returns {'identical'|'confirm'|'conflict'|'unavailable'}
  */
 export function classifyRestore(draft, cloud) {
   if (!isValidDraftRecord(draft)) return "conflict";
-  if (!cloud || typeof cloud.version !== "number" || typeof cloud.content !== "string") {
+  if (
+    !cloud ||
+    typeof cloud.version !== "number" ||
+    typeof cloud.title !== "string" ||
+    typeof cloud.content !== "string"
+  ) {
     return "unavailable";
   }
-  if (cloud.content === draft[FIELDS.CONTENT]) return "identical";
+  if (cloud.title === draft[FIELDS.TITLE] && cloud.content === draft[FIELDS.CONTENT]) return "identical";
   if (cloud.version === draft[FIELDS.BASE_VERSION]) return "confirm";
   return "conflict";
 }
-
