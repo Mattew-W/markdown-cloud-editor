@@ -342,6 +342,7 @@ export function listDrafts({ userId, docId } = {}, { storage = defaultStorage() 
     if (read.status === "ok") {
       result.records.push(read.record);
     } else if (read.status === "corrupt") {
+      if (read.error?.reason === "unavailable") throw read.error;
       result.corrupt += 1;
     }
   }
@@ -405,44 +406,31 @@ export function discardDraft(key, guard = {}, { storage = defaultStorage() } = {
 }
 
 /**
- * 清除某编辑会话的全部草稿。
+ * 清除调用方明确确认安全删除的会话草稿。
  *
  * 规范 §08:380：首版退出只清理当前标签页 token，
  * 并清理当前会话已同步或被用户明确丢弃的草稿，
  * 不能自动删除其他窗口未同步内容。
- * 本函数按会话 ID 精确清理，不跨会话。
+ * 调用方只应把已同步或被用户明确丢弃的草稿传入 safeDrafts，
+ * 并提供每条记录当前的修订号和内容；本函数逐条执行三重核对。
  *
  * @param {string} sessionId
- * @param {{userId: string}} query
+ * @param {{userId: string, safeDrafts?: Array<{docId: string, localRevision: number, content: string}>}} query
  * @param {{storage?: Storage}} [options]
  * @returns {number} 实际清除的条数
  */
-export function clearSessionDrafts(sessionId, { userId } = {}, { storage = defaultStorage() } = {}) {
-  if (!storage || !sessionId || !userId) return 0;
-
-  let keys;
-  try {
-    keys = [];
-    for (let i = 0; i < storage.length; i += 1) {
-      const k = storage.key(i);
-      if (k !== null && k !== undefined) keys.push(k);
-    }
-  } catch (error) {
-    throw classifyStorageError(error);
-  }
-
+export function clearSessionDrafts(sessionId, { userId, safeDrafts = [] } = {}, { storage = defaultStorage() } = {}) {
+  if (!storage || !sessionId || !userId || !Array.isArray(safeDrafts)) return 0;
   let cleared = 0;
-  for (const key of keys) {
-    const parsed = parseDraftKey(key);
-    if (!parsed) continue;
-    if (parsed.userId !== userId) continue;
-    if (parsed.sessionId !== sessionId) continue;
-    try {
-      storage.removeItem(key);
-      cleared += 1;
-    } catch (error) {
-      throw classifyStorageError(error);
-    }
+  for (const safeDraft of safeDrafts) {
+    if (!safeDraft || typeof safeDraft.docId !== "string" || !safeDraft.docId) continue;
+    const key = buildDraftKey({ userId, docId: safeDraft.docId, sessionId });
+    const result = discardDraft(
+      key,
+      { sessionId, localRevision: safeDraft.localRevision, content: safeDraft.content },
+      { storage }
+    );
+    if (result.status === "discarded") cleared += 1;
   }
   return cleared;
 }
