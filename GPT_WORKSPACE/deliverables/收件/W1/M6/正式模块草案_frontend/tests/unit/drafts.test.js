@@ -291,6 +291,16 @@ describe("草稿隔离与枚举", () => {
     assert.equal(corrupt, 1);
   });
 
+  test("存储不可用时枚举草稿会传播错误", () => {
+    const { storage } = createFakeStorage({ failOn: "getItem" });
+    saveDraft(makeDraft(), { storage });
+
+    assert.throws(
+      () => listDrafts({ userId: "user-a" }, { storage }),
+      (error) => error instanceof DraftStorageError && error.reason === "unavailable"
+    );
+  });
+
   test("非草稿键不参与枚举", () => {
     const { storage, map } = createFakeStorage();
     map.set("some-other-key", "value");
@@ -364,13 +374,25 @@ describe("草稿清理", () => {
     assert.equal(readDraft(key, { storage }).status, "missing");
   });
 
-  test("按会话清理不影响其他会话", () => {
+  test("没有明确安全草稿时不清理会话内容", () => {
+    const { storage } = createFakeStorage();
+    saveDraft(makeDraft({ edit_session_id: "sess-1", content: "未同步内容" }), { storage });
+
+    assert.equal(clearSessionDrafts("sess-1", { userId: "user-a" }, { storage }), 0);
+    assert.equal(listDrafts({ userId: "user-a" }, { storage }).records.length, 1);
+  });
+
+  test("仅清理明确提供且匹配的草稿，不影响其他会话", () => {
     const { storage } = createFakeStorage();
     saveDraft(makeDraft({ edit_session_id: "sess-1" }), { storage });
     saveDraft(makeDraft({ edit_session_id: "sess-2" }), { storage });
     saveDraft(makeDraft({ edit_session_id: "sess-2", doc_id: "doc-2" }), { storage });
 
-    const cleared = clearSessionDrafts("sess-1", { userId: "user-a" }, { storage });
+    const cleared = clearSessionDrafts(
+      "sess-1",
+      { userId: "user-a", safeDrafts: [{ docId: "doc-1", localRevision: 7, content: "# 正文" }] },
+      { storage }
+    );
     assert.equal(cleared, 1);
     assert.equal(listDrafts({ userId: "user-a" }, { storage }).records.length, 2);
   });
@@ -380,7 +402,11 @@ describe("草稿清理", () => {
     saveDraft(makeDraft({ user_id: "user-a", edit_session_id: "sess-1" }), { storage });
     saveDraft(makeDraft({ user_id: "user-b", edit_session_id: "sess-1" }), { storage });
 
-    clearSessionDrafts("sess-1", { userId: "user-a" }, { storage });
+    clearSessionDrafts(
+      "sess-1",
+      { userId: "user-a", safeDrafts: [{ docId: "doc-1", localRevision: 7, content: "# 正文" }] },
+      { storage }
+    );
     assert.equal(listDrafts({ userId: "user-b" }, { storage }).records.length, 1);
   });
 });
