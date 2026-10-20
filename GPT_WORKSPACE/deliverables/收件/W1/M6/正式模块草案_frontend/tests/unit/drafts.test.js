@@ -301,6 +301,13 @@ describe("草稿隔离与枚举", () => {
     );
   });
 
+  test("本地存储不可用时枚举草稿不会伪报空列表", () => {
+    assert.throws(
+      () => listDrafts({ userId: "user-a" }, { storage: null }),
+      (error) => error instanceof DraftStorageError && error.reason === "unavailable"
+    );
+  });
+
   test("非草稿键不参与枚举", () => {
     const { storage, map } = createFakeStorage();
     map.set("some-other-key", "value");
