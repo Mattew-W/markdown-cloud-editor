@@ -22,9 +22,13 @@ jobs:
       - name: Run frontend draft unit tests when present
         shell: bash
         run: |
-          test_file="GPT_WORKSPACE/deliverables/收件/W1/M6/正式模块草案_frontend/tests/unit/drafts.test.js"
+          module_dir="GPT_WORKSPACE/deliverables/收件/W1/M6/正式模块草案_frontend"
+          test_file="$module_dir/tests/unit/drafts.test.js"
           if [ -f "$test_file" ]; then
             node --test "$test_file"
+          elif [ -d "$module_dir" ]; then
+            echo "::error::Frontend module exists but its required unit test file is missing."
+            exit 1
           else
-            echo "No frontend draft test suite exists in this branch; frontend tests were skipped."
+            echo "Frontend draft module has not landed yet; tests are not applicable."
           fi
