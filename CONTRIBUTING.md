@@ -29,7 +29,7 @@ Use concise, imperative commit subjects that describe the change. Keep each comm
 
 ## Review and merge
 
-Each PR needs approval from at least one other team member. Authors must not approve their own PR. Resolve every review conversation and address requested changes before merging. The author should request review from a teammate; the reviewer should check the code review checklist in [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md).
+The repository owner is the sole GitHub maintainer. A second GitHub approval is not required. The author reviews the diff, checks the test evidence, resolves all review conversations, and records the review conclusion in the PR before merging. AI review may help find issues, but it does not count as another user's approval.
 
 Only repository maintainers should administer branch rules. Merge using an allowed GitHub merge method after all requirements are satisfied. Do not force-push to shared branches. Feature branches should be deleted after merge when practical.
 
@@ -43,4 +43,10 @@ cargo clippy -- -D warnings
 cargo test
 ```
 
-Run any frontend checks documented by the frontend package as well. CI discovers Cargo manifests automatically; the team should add frontend checks when a frontend test/lint tool is selected.
+The current frontend draft module has a Node.js built-in test suite. From the repository root, run:
+
+```sh
+node --test "GPT_WORKSPACE/deliverables/收件/W1/M6/正式模块草案_frontend/tests/unit/drafts.test.js"
+```
+
+The `Frontend checks` workflow runs this suite when the test file exists in the branch. It reports an explicit skip while the module has not yet been added. Rust checks become required when a Rust crate and a real Rust CI job are present.
