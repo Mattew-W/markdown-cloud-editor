@@ -371,6 +371,22 @@ describe("草稿清理", () => {
     }
   });
 
+  test("存储不可用时不把删除误报成草稿损坏", () => {
+    const { storage } = createFakeStorage();
+    const key = buildDraftKey({ userId: "user-a", docId: "doc-1", sessionId: "sess-1" });
+    saveDraft(makeDraft(), { storage });
+    storage.getItem = () => {
+      const error = new Error("denied");
+      error.name = "SecurityError";
+      throw error;
+    };
+
+    assert.throws(
+      () => discardDraft(key, { sessionId: "sess-1", localRevision: 7, content: "# 正文" }, { storage }),
+      (error) => error instanceof DraftStorageError && error.reason === "unavailable"
+    );
+  });
+
   test("三项全部匹配才删除", () => {
     const { storage } = createFakeStorage();
     const key = buildDraftKey({ userId: "user-a", docId: "doc-1", sessionId: "sess-1" });
