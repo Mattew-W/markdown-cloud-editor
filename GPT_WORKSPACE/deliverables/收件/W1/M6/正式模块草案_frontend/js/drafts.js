@@ -374,7 +374,10 @@ export function listDrafts({ userId, docId } = {}, { storage = defaultStorage() 
 export function discardDraft(key, guard = {}, { storage = defaultStorage() } = {}) {
   const read = readDraft(key, { storage });
   if (read.status === "missing") return { status: "missing" };
-  if (read.status === "corrupt") return { status: "mismatch", reason: "corrupt" };
+  if (read.status === "corrupt") {
+    if (read.error?.reason === "unavailable") throw read.error;
+    return { status: "mismatch", reason: "corrupt" };
+  }
 
   const record = read.record;
 
