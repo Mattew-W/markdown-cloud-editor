@@ -11,10 +11,10 @@
 
 ## Verification
 
-- [ ] `cargo fmt --check`
-- [ ] `cargo clippy -- -D warnings`
-- [ ] `cargo test`
-- [ ] Frontend checks (if applicable):
+- [ ] `cargo fmt --check` (when Rust code is present)
+- [ ] `cargo clippy -- -D warnings` (when Rust code is present)
+- [ ] `cargo test` (when Rust code is present)
+- [ ] Frontend checks (when frontend tests are present)
 - [ ] Documentation updated (if applicable)
 
 Commands run and results:
@@ -26,6 +26,7 @@ Commands run and results:
 - [ ] Network and error cases are handled.
 - [ ] Autosave cannot silently overwrite newer content or lose edits.
 - [ ] Necessary tests and documentation are included.
+- [ ] Repository owner reviewed the diff, test evidence, and resolved conversations.
 
 ## Related issue
 
