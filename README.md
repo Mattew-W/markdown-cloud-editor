@@ -31,8 +31,8 @@ Once the Rust application is added, run it from the directory containing its `Ca
 
 ## Checks
 
-GitHub Actions discovers Cargo manifests in the repository and runs `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test` for each discovered crate/workspace. The Rust CI job reports a clear failure until Rust code is added.
+The `Frontend checks` GitHub Actions workflow runs the current frontend draft unit suite with Node.js 24 when that module exists. Rust checks will become required when a Rust crate and a real Rust CI job are present.
 
 ## Collaboration
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before working. All changes go through a pull request to `main` and require an approval from another member plus passing CI.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before working. All changes go through a pull request to `main`; the repository owner reviews and merges them after required checks pass. No second GitHub approval is required.
