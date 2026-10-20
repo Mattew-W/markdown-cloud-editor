@@ -307,7 +307,7 @@ describe("草稿清理", () => {
     const key = buildDraftKey({ userId: "user-a", docId: "doc-1", sessionId: "sess-1" });
     saveDraft(makeDraft(), { storage });
 
-    const r = discardDraft(key, { sessionId: "sess-other" }, { storage });
+    const r = discardDraft(key, { sessionId: "sess-other", localRevision: 7, content: "原内容" }, { storage });
     assert.equal(r.status, "mismatch");
     assert.equal(r.reason, "session");
     assert.equal(readDraft(key, { storage }).status, "ok");
@@ -318,7 +318,7 @@ describe("草稿清理", () => {
     const key = buildDraftKey({ userId: "user-a", docId: "doc-1", sessionId: "sess-1" });
     saveDraft(makeDraft({ local_revision: 7 }), { storage });
 
-    const r = discardDraft(key, { sessionId: "sess-1", localRevision: 8 }, { storage });
+    const r = discardDraft(key, { sessionId: "sess-1", localRevision: 8, content: "原内容" }, { storage });
     assert.equal(r.status, "mismatch");
     assert.equal(r.reason, "revision");
     assert.equal(readDraft(key, { storage }).status, "ok");
@@ -329,10 +329,29 @@ describe("草稿清理", () => {
     const key = buildDraftKey({ userId: "user-a", docId: "doc-1", sessionId: "sess-1" });
     saveDraft(makeDraft({ content: "原内容" }), { storage });
 
-    const r = discardDraft(key, { content: "新内容" }, { storage });
+    const r = discardDraft(key, { sessionId: "sess-1", localRevision: 7, content: "新内容" }, { storage });
     assert.equal(r.status, "mismatch");
     assert.equal(r.reason, "content");
     assert.equal(readDraft(key, { storage }).status, "ok");
+  });
+
+  test("缺少任一保护条件时拒绝删除", () => {
+    const { storage } = createFakeStorage();
+    const key = buildDraftKey({ userId: "user-a", docId: "doc-1", sessionId: "sess-1" });
+    saveDraft(makeDraft({ content: "原内容", local_revision: 7 }), { storage });
+
+    const incompleteGuards = [
+      {},
+      { sessionId: "sess-1", localRevision: 7 },
+      { sessionId: "sess-1", content: "原内容" },
+      { localRevision: 7, content: "原内容" },
+    ];
+
+    for (const guard of incompleteGuards) {
+      const r = discardDraft(key, guard, { storage });
+      assert.deepEqual(r, { status: "mismatch", reason: "guard" });
+      assert.equal(readDraft(key, { storage }).status, "ok");
+    }
   });
 
   test("三项全部匹配才删除", () => {
@@ -550,28 +569,33 @@ describe("合并写入调度", () => {
 describe("恢复判定", () => {
   test("内容与云端相同 → identical", () => {
     const draft = makeDraft({ content: "同内容", base_version: 3 });
-    assert.equal(classifyRestore(draft, { version: 5, content: "同内容" }), "identical");
+    assert.equal(classifyRestore(draft, { version: 5, title: "课程笔记", content: "同内容" }), "identical");
+  });
+
+  test("标题单独变化时不能判为 identical", () => {
+    const draft = makeDraft({ title: "本地标题", content: "同内容", base_version: 3 });
+    assert.equal(classifyRestore(draft, { version: 3, title: "云端标题", content: "同内容" }), "confirm");
+    assert.equal(classifyRestore(draft, { version: 5, title: "云端标题", content: "同内容" }), "conflict");
   });
 
   test("云端版本等于 base_version → confirm", () => {
     const draft = makeDraft({ content: "本地内容", base_version: 3 });
-    assert.equal(classifyRestore(draft, { version: 3, content: "云端内容" }), "confirm");
+    assert.equal(classifyRestore(draft, { version: 3, title: "课程笔记", content: "云端内容" }), "confirm");
   });
 
   test("云端版本不同且内容不同 → conflict", () => {
     const draft = makeDraft({ content: "本地内容", base_version: 3 });
-    assert.equal(classifyRestore(draft, { version: 9, content: "云端内容" }), "conflict");
+    assert.equal(classifyRestore(draft, { version: 9, title: "课程笔记", content: "云端内容" }), "conflict");
   });
 
   test("云端不可用 → unavailable", () => {
     const draft = makeDraft();
     assert.equal(classifyRestore(draft, null), "unavailable");
-    assert.equal(classifyRestore(draft, { version: 1 }), "unavailable");
+    assert.equal(classifyRestore(draft, { version: 1, title: "课程笔记" }), "unavailable");
   });
 
   test("无效草稿一律判为 conflict，不做自动提交", () => {
-    assert.equal(classifyRestore({ content: "x" }, { version: 1, content: "x" }), "conflict");
-    assert.equal(classifyRestore(null, { version: 1, content: "x" }), "conflict");
+    assert.equal(classifyRestore({ content: "x" }, { version: 1, title: "x", content: "x" }), "conflict");
+    assert.equal(classifyRestore(null, { version: 1, title: "x", content: "x" }), "conflict");
   });
 });
-
