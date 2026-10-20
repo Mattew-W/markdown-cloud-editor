@@ -495,6 +495,42 @@ describe("合并写入调度", () => {
     assert.equal(map.size, 2);
   });
 
+  test("定时写入失败会报告错误并保留待重试内容", () => {
+    const { storage, map } = createFakeStorage();
+    const clock = createFakeClock();
+    const originalSetItem = storage.setItem.bind(storage);
+    let shouldFail = true;
+    storage.setItem = (...args) => {
+      if (shouldFail) {
+        const error = new Error("quota");
+        error.name = "QuotaExceededError";
+        throw error;
+      }
+      originalSetItem(...args);
+    };
+    const errors = [];
+    const writer = createDraftWriter({
+      storage,
+      onError: (error, record) => errors.push({ error, record }),
+      setTimeout: clock.setTimeout,
+      clearTimeout: clock.clearTimeout,
+    });
+
+    const key = writer.schedule(makeDraft({ content: "保留的草稿" }));
+    clock.advance(250);
+
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0].error.reason, "quota");
+    assert.equal(errors[0].record.content, "保留的草稿");
+    assert.deepEqual(writer.pending(), [key]);
+    assert.equal(map.size, 0);
+
+    shouldFail = false;
+    assert.equal(writer.flush(key), true);
+    assert.equal(map.size, 1);
+    assert.deepEqual(writer.pending(), []);
+  });
+
   test("cancel 丢弃待写内容且不落盘", () => {
     const { storage, map } = createFakeStorage();
     const clock = createFakeClock();
@@ -538,3 +574,4 @@ describe("恢复判定", () => {
     assert.equal(classifyRestore(null, { version: 1, content: "x" }), "conflict");
   });
 });
+

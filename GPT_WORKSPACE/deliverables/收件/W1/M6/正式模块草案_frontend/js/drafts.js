@@ -445,7 +445,7 @@ export function clearSessionDrafts(sessionId, { userId } = {}, { storage = defau
  *
  * 调度器不直接操作 DOM，flush 由调用方在切换文档前显式触发。
  *
- * @param {{storage?: Storage, now?: () => Date, delay?: number, setTimeout?: Function, clearTimeout?: Function}} [options]
+ * @param {{storage?: Storage, now?: () => Date, delay?: number, setTimeout?: Function, clearTimeout?: Function, onError?: (error: DraftStorageError, record: object) => void}} [options]
  * @returns {{schedule: Function, flush: Function, flushAll: Function, cancel: Function, pending: Function}}
  */
 export function createDraftWriter({
@@ -454,6 +454,7 @@ export function createDraftWriter({
   delay = MERGE_WRITE_DELAY_MS,
   setTimeout: setTimer = typeof setTimeout === "function" ? setTimeout : undefined,
   clearTimeout: clearTimer = typeof clearTimeout === "function" ? clearTimeout : undefined,
+  onError,
 } = {}) {
   /** @type {Map<string, {record: object, timer: any}>} */
   const pending = new Map();
@@ -479,12 +480,14 @@ export function createDraftWriter({
       const timer = setTimer(() => {
         const entry = pending.get(key);
         if (!entry) return;
-        pending.delete(key);
+        entry.timer = null;
         try {
           writeNow(entry.record);
-        } catch {
-          // 写入失败不在调度层抛错；调用方应在 saveDraft 时处理错误，
-          // 这里的失败只能来自合并窗口内的意外，交给下一次 schedule 重试。
+          pending.delete(key);
+        } catch (error) {
+          // 保留失败项供调用方检查或重试；异步错误通过回调报告。
+          if (onError) onError(error, entry.record);
+          else throw error;
         }
       }, delay);
       pending.get(key).timer = timer;
@@ -498,8 +501,9 @@ export function createDraftWriter({
     const entry = pending.get(key);
     if (!entry) return false;
     if (entry.timer && clearTimer) clearTimer(entry.timer);
-    pending.delete(key);
+    entry.timer = null;
     writeNow(entry.record);
+    pending.delete(key);
     return true;
   }
 
@@ -554,3 +558,4 @@ export function classifyRestore(draft, cloud) {
   if (cloud.version === draft[FIELDS.BASE_VERSION]) return "confirm";
   return "conflict";
 }
+
