@@ -291,6 +291,16 @@ describe("草稿隔离与枚举", () => {
     assert.equal(corrupt, 1);
   });
 
+  test("键与记录身份不一致时按 corrupt 处理", () => {
+    const { storage, map } = createFakeStorage();
+    const key = buildDraftKey({ userId: "user-a", docId: "doc-1", sessionId: "sess-1" });
+    map.set(key, JSON.stringify(makeDraft({ user_id: "user-b" })));
+
+    const result = listDrafts({ userId: "user-a" }, { storage });
+    assert.equal(result.records.length, 0);
+    assert.equal(result.corrupt, 1);
+  });
+
   test("存储不可用时枚举草稿会传播错误", () => {
     const { storage } = createFakeStorage({ failOn: "getItem" });
     saveDraft(makeDraft(), { storage });
@@ -522,6 +532,25 @@ describe("合并写入调度", () => {
     assert.equal(map.size, 1, "计时器到点应只落盘一条");
     const stored = JSON.parse([...map.values()][0]);
     assert.equal(stored.content, "v3", "应保留最新内容");
+  });
+
+  test("schedule 保存排队时的记录快照", () => {
+    const { storage, map } = createFakeStorage();
+    const clock = createFakeClock();
+    const writer = createDraftWriter({ storage, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+    const record = makeDraft({ content: "已排队" });
+
+    const originalKey = writer.schedule(record);
+    record.doc_id = "doc-mutated";
+    record.edit_session_id = "session-mutated";
+    record.content = "后来改动";
+
+    clock.advance(250);
+
+    assert.equal(map.size, 1);
+    assert.equal(map.has(originalKey), true);
+    assert.equal(JSON.parse(map.get(originalKey)).content, "已排队");
+    assert.equal(writer.pending().length, 0);
   });
 
   test("未满 250ms 不落盘，超过则落盘", () => {
