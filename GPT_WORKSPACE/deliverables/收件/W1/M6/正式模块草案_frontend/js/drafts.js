@@ -319,7 +319,10 @@ export function saveDraft(record, { storage = defaultStorage(), now = () => new 
  */
 export function listDrafts({ userId, docId } = {}, { storage = defaultStorage() } = {}) {
   const result = { records: [], corrupt: 0 };
-  if (!storage || !userId) return result;
+  if (!userId) return result;
+  if (!storage) {
+    throw new DraftStorageError("unavailable", "本地备份失败：浏览器本地存储不可用");
+  }
 
   let keys;
   try {
