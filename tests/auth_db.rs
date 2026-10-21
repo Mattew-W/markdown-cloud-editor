@@ -84,21 +84,116 @@ macro_rules! require_db {
     };
 }
 
-/// 建连接池并**清空** users 表（级联影响 documents）。
-async fn clean_pool() -> PgPool {
+/// 建连接池并为**当前测试**准备一个独立 schema。
+///
+/// ## 为什么不能共用一张表再 TRUNCATE（这是本文件曾经的真实缺陷）
+///
+/// 早期实现让所有测试连同一个 `TEST_DATABASE_URL`、共用 `public` schema，
+/// 每个用例开头 `TRUNCATE users, documents CASCADE`。
+/// `cargo test` 默认多线程并行，于是：
+///
+/// - 用例 A 注册完用户、用例 B 的 `TRUNCATE` 把它擦掉；
+/// - A 紧接着登录 → 401，但不是密码错，是**用户被抹了**；
+/// - 表现为间歇性失败，重跑又可能通过，最难查的那类问题。
+///
+/// ## 现在怎么做
+///
+/// 每个用例通过 [`isolated_pool`] 拿到**自己的 schema**
+/// （如 `t_<线程序号>_<时间戳>`），表建在该 schema 内：
+///
+/// - 不同用例之间**物理隔离**，清理只影响自己；
+/// - 不需要把整个测试串行化，保留了并行带来的速度优势；
+/// - schema 名由随机成分生成，不会撞名。
+///
+/// ## schema 的清理
+///
+/// 用例内**不**主动删除 schema：sqlx 0.8 的 `PoolOptions` 只提供
+/// `after_release`，在归还连接时删 schema 既不幂等、也会与仍在使用的
+/// 连接冲突。
+///
+/// 清理改为在**测试运行前后**统一完成：
+/// - `scripts/cleanup_test_data.sql` 删掉全部 `t_%` 前缀的测试 schema；
+/// - CI 的 `Rust checks` 在跑数据库测试前后各执行一次。
+///
+/// 这样每个用例只需建 schema，不必操心收尾。
+///
+/// 返回的池已通过 `after_connect` 钩子让**每条新建连接**都带上
+/// `search_path`，因此无论池如何扩连，测试代码里的
+/// `INSERT INTO users` 都会落到本用例专属的 schema 内。
+pub(crate) async fn isolated_pool() -> PgPool {
     require_db!();
+    let schema = unique_schema_name();
+
+    // schema 名只由 ASCII 字母数字与下划线组成，不含用户输入，
+    // 故用 format! 拼接是安全的（无需 SQL 字符串转义）。
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
+        .after_connect({
+            let schema = schema.clone();
+            move |conn, _meta| {
+                let set = format!("SET search_path TO {schema}");
+                Box::pin(async move {
+                    sqlx::query(&set).execute(conn).await?;
+                    Ok(())
+                })
+            }
+        })
         .connect(&test_database_url())
         .await
         .expect("连接测试数据库失败");
 
-    sqlx::query("TRUNCATE users, documents CASCADE")
+    sqlx::query(&format!("CREATE SCHEMA IF NOT EXISTS {schema}"))
         .execute(&pool)
         .await
-        .expect("清空测试表失败");
+        .expect("创建隔离 schema 失败");
+
+    // 在隔离 schema 内建表。用 include_str! 复用真实迁移文件，
+    // 保证测试跑的 schema 与生产完全一致（规范 §11：不得另写一套）。
+    let migration = include_str!("../migrations/0001_init.sql");
+    // 迁移文件自带 BEGIN/COMMIT；sqlx 的 execute 本身已在一个事务里，
+    // 嵌套 BEGIN 在 PostgreSQL 中只是提示，不会破坏语义，
+    // 但为避免警告，这里剥掉显式事务控制语句。
+    let body = migration
+        .lines()
+        .filter(|l| {
+            let t = l.trim().to_ascii_uppercase();
+            !t.starts_with("BEGIN") && !t.starts_with("COMMIT")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    sqlx::raw_sql(&body)
+        .execute(&pool)
+        .await
+        .expect("在隔离 schema 内执行迁移失败");
 
     pool
+}
+
+/// 生成一个当前测试独有的 schema 名。
+///
+/// 组成：`t_` + 线程标识的可读部分 + 进程内单调递增计数 + 时间戳，
+/// 保证同一次 `cargo test` 运行内不重复。
+fn unique_schema_name() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+
+    // 线程名可能含非 ASCII（如中文），仅保留 ASCII 字母数字与下划线。
+    let thread: String = std::thread::current()
+        .name()
+        .unwrap_or("t")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .take(12)
+        .collect();
+
+    format!("t_{thread}_{n}_{stamp:x}")
 }
 
 /// 被测应用的类型别名。
@@ -179,7 +274,7 @@ async fn error_parts(resp: ServiceResponse) -> (String, String) {
 #[actix_web::test]
 #[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
 async fn 注册成功返回201与可用token() {
-    let app = build_app!(clean_pool().await);
+    let app = build_app!(isolated_pool().await);
 
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/register")
@@ -216,7 +311,7 @@ async fn 注册成功返回201与可用token() {
 #[actix_web::test]
 #[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
 async fn 用户名归一化后重名返回409() {
-    let app = build_app!(clean_pool().await);
+    let app = build_app!(isolated_pool().await);
 
     // 先注册一个确定不冲突的用户名（alice_409 不含 "alice" 全等关系）。
     let req1 = test::TestRequest::post()
@@ -251,7 +346,7 @@ async fn 用户名归一化后重名返回409() {
 #[actix_web::test]
 #[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
 async fn 密码哈希以argon2id_phc格式存储() {
-    let pool = clean_pool().await;
+    let pool = isolated_pool().await;
     let app = build_app!(pool.clone());
     register_ok(&app, "bob", "Correct-Horse-Battery").await;
 
@@ -273,7 +368,7 @@ async fn 密码哈希以argon2id_phc格式存储() {
 #[actix_web::test]
 #[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
 async fn 登录成功返回200() {
-    let app = build_app!(clean_pool().await);
+    let app = build_app!(isolated_pool().await);
     register_ok(&app, "carol", "Correct-Horse-Battery").await;
 
     let req = test::TestRequest::post()
@@ -296,7 +391,7 @@ async fn 登录成功返回200() {
 #[actix_web::test]
 #[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
 async fn 密码错误与用户不存在返回完全相同的401() {
-    let app = build_app!(clean_pool().await);
+    let app = build_app!(isolated_pool().await);
     register_ok(&app, "dave", "Correct-Horse-Battery").await;
 
     // 密码错
@@ -328,7 +423,7 @@ async fn 密码错误与用户不存在返回完全相同的401() {
 async fn 数据库约束拦下非法用户名() {
     // 绕过应用层直接写库，验证**数据库兜底**确实生效。
     // 规范 §07：应用执行验证，数据库保留约束兜底。
-    let pool = clean_pool().await;
+    let pool = isolated_pool().await;
     let result: Result<uuid::Uuid, sqlx::Error> = sqlx::query_scalar(
         "INSERT INTO users (username, password_hash) VALUES ('AB', 'x') RETURNING id",
     )
@@ -341,7 +436,7 @@ async fn 数据库约束拦下非法用户名() {
 #[actix_web::test]
 #[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
 async fn 数据库约束拦下超长正文() {
-    let pool = clean_pool().await;
+    let pool = isolated_pool().await;
     sqlx::query("INSERT INTO users (username, password_hash) VALUES ('erin', 'x')")
         .execute(&pool)
         .await
@@ -362,7 +457,7 @@ async fn 数据库约束拦下超长正文() {
 #[actix_web::test]
 #[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
 async fn 注册响应不含任何敏感字段() {
-    let app = build_app!(clean_pool().await);
+    let app = build_app!(isolated_pool().await);
 
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/register")

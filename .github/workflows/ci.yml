@@ -132,8 +132,21 @@ jobs:
       # 数据库集成测试默认 #[ignore]（无本地库时跳过）。
       # CI 有 postgres 服务容器，故此处**必定真实执行**——
       # 规范 §11/§12 不允许这些用例被静默跳过。
+      #
+      # 每个用例建自己的 schema（t_% 前缀）以获得并行隔离，
+      # 用例内不删除；运行前后各清一次，保证 CI 反复运行不残留。
+      - name: 清理上次遗留的测试 schema
+        env:
+          PGPASSWORD: ci_test_password
+        run: psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 -f migrations/cleanup_test_schemas.sql
+
       - name: cargo test（真实数据库）
         run: cargo test --locked --all-targets -- --ignored
+
+      - name: 清理本次产生的测试 schema
+        env:
+          PGPASSWORD: ci_test_password
+        run: psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 -f migrations/cleanup_test_schemas.sql
 
       # ---------- 必检 4/4：文档 ----------
       - name: cargo doc

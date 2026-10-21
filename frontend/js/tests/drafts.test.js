@@ -247,17 +247,83 @@ test('同一文档的多个会话草稿并存', () => {
   assert.deepEqual(all.map((d) => d.content).sort(), ['A', 'B']);
 });
 
-test('clearSessionDrafts 只清理他会话、保留当前会话', () => {
+test('clearSessionDrafts 默认不删其他会话的草稿（保守）', () => {
   const store = makeStorage();
   saveDraft(draftOf({ sessionId: SESS_1, content: 'mine' }), store);
   saveDraft(draftOf({ sessionId: SESS_2, content: 'old' }), store);
 
-  const { removed } = clearSessionDrafts({ userId: USER_A, docId: DOC_1, sessionId: SESS_1 }, store);
-  assert.equal(removed.length, 1);
+  // 未提供云端状态时，无从证明历史草稿已无用，因此一条都不删。
+  // 这是修复 P1 的核心：会话 ID 不同 ≠ 记录已过时。
+  const { removed, kept } = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    {},
+    store,
+  );
+  assert.equal(removed.length, 0, '未确认时不得删除任何记录');
+  assert.equal(kept.length, 2, '两条都应保留');
+
+  const left = listDrafts({ userId: USER_A, docId: DOC_1 }, store);
+  assert.equal(left.length, 2);
+});
+
+test('clearSessionDrafts 仅在云端已覆盖时才删（标题与正文都一致）', () => {
+  const store = makeStorage();
+  saveDraft(draftOf({ sessionId: SESS_1, content: 'mine' }), store);
+  saveDraft(draftOf({ sessionId: SESS_2, content: 'old', title: '旧标题' }), store);
+
+  const { removed } = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    {
+      cloud: { version: 9, title: '旧标题', content: 'old' },
+    },
+    store,
+  );
+  assert.equal(removed.length, 1, '与云端完全一致的那条才可删');
 
   const left = listDrafts({ userId: USER_A, docId: DOC_1 }, store);
   assert.equal(left.length, 1);
   assert.equal(left[0].content, 'mine');
+});
+
+test('clearSessionDrafts 保留「云端版本够但内容不同」的草稿', () => {
+  const store = makeStorage();
+  saveDraft(draftOf({ sessionId: SESS_2, content: 'unsaved-edit' }), store);
+
+  const { removed } = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    { cloud: { version: 99, title: '标题', content: '云端内容' } },
+    store,
+  );
+  assert.equal(removed.length, 0, '内容不同就是有未同步修改，绝不能删');
+  assert.equal(listDrafts({ userId: USER_A, docId: DOC_1 }, store).length, 1);
+});
+
+test('clearSessionDrafts 保留「仅标题不同」的草稿', () => {
+  const store = makeStorage();
+  // 正文与云端一致，但标题是未保存的修改——必须保留。
+  saveDraft(draftOf({ sessionId: SESS_2, content: 'same', title: '我改的标题' }), store);
+
+  const { removed } = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    { cloud: { version: 99, title: '原标题', content: 'same' } },
+    store,
+  );
+  assert.equal(removed.length, 0, '标题改动同样受草稿保护');
+  assert.equal(listDrafts({ userId: USER_A, docId: DOC_1 }, store).length, 1);
+});
+
+test('clearSessionDrafts 支持显式确认丢弃', () => {
+  const store = makeStorage();
+  saveDraft(draftOf({ sessionId: SESS_2, content: 'old' }), store);
+  const key = listDrafts({ userId: USER_A, docId: DOC_1 }, store)[0].key
+    ?? `${'markdown-editor:draft'}:${USER_A}:${DOC_1}:${SESS_2}`;
+
+  const { removed } = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    { confirmedKeys: [key] },
+    store,
+  );
+  assert.equal(removed.length, 1);
 });
 
 test('clearSessionDrafts 不影响其他文档', () => {
@@ -317,6 +383,39 @@ test('存储禁用映射 unavailable', () => {
     () => saveDraft(draftOf(), store),
     (e) => e instanceof DraftStorageError && e.reason === 'unavailable',
   );
+});
+
+test('属性访问阶段抛出的 SecurityError 也归一化为 unavailable', () => {
+  // 回归测试（PR #3 审查意见 P2）：浏览器策略禁用存储时，
+  // 访问 `window.localStorage` **属性本身**就抛 SecurityError，
+  // 若该访问在 try 之外，原生 DOMException 会直接漏出，
+  // 调用方拿不到契约承诺的 reason === 'unavailable'。
+  //
+  // Node 环境没有 window，这里用 getter 定义一个会抛错的假 window，
+  // 精确复现"取属性即抛"的场景。
+  const realWindow = globalThis.window;
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    get() {
+      throw new Error('浏览器策略阻断');
+    },
+  });
+  try {
+    assert.throws(
+      () => readDraft(buildDraftKey({ userId: USER_A, docId: DOC_1, sessionId: SESS_1 })),
+      (e) => e instanceof DraftStorageError && e.reason === 'unavailable',
+      '取 localStorage 属性时抛错也必须归一化',
+    );
+  } finally {
+    if (realWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: realWindow,
+      });
+    }
+  }
 });
 
 test('配额耗尽映射 quota', () => {
@@ -398,16 +497,59 @@ test('cancel 后不再写入', () => {
   assert.equal(listDrafts({ userId: USER_A }, store).length, 0);
 });
 
+test('flushAll 必须落盘（不能只取消定时器）', () => {
+  // 回归测试：早期实现只 clearTimeout + pendingDraft = null，
+  // 导致「schedule 之后立刻 flushAll」什么都不写——快照被静默丢失。
+  const store = makeStorage();
+  let fired = null;
+  const writer = createDraftWriter({ storage: store, delay: (fn) => { fired = fn; return 1; } });
+  writer.schedule(draftOf({ content: 'flushAll 必须保住我' }));
+  writer.flushAll();
+
+  const saved = listDrafts({ userId: USER_A }, store);
+  assert.equal(saved.length, 1, 'flushAll 后存储里必须有这条草稿');
+  assert.equal(saved[0].content, 'flushAll 必须保住我');
+
+  // 落盘后定时器不应再写第二次
+  if (fired) fired();
+  assert.equal(listDrafts({ userId: USER_A }, store).length, 1);
+});
+
 // ---------- 8. 恢复分支判定 ----------
 
 test('内容相同则采用云端', () => {
-  const d = draftOf({ content: '一样的', base_version: 5 });
-  assert.equal(classifyRestore(d, { title: 'x', content: '一样的', version: 99 }), 'adopt_cloud');
+  const d = draftOf({ content: '一样的', title: '标题甲', base_version: 5 });
+  assert.equal(
+    classifyRestore(d, { title: '标题甲', content: '一样的', version: 99 }),
+    'adopt_cloud',
+  );
+});
+
+test('仅标题不同时不得判为 adopt_cloud（否则标题改动会丢失）', () => {
+  // 正文与云端一致，标题是用户未保存的修改。
+  // 早期实现只比 content，会判成 adopt_cloud 并清掉草稿 → 标题改动丢失。
+  const d = draftOf({ content: '一样的', title: '我改的标题', base_version: 5 });
+  assert.equal(
+    classifyRestore(d, { title: '原标题', content: '一样的', version: 99 }),
+    'conflict',
+    '标题不同就不能认定草稿冗余',
+  );
+});
+
+test('仅标题不同时且版本未变则需确认', () => {
+  const d = draftOf({ content: '一样的', title: '我改的标题', base_version: 5 });
+  assert.equal(
+    classifyRestore(d, { title: '原标题', content: '一样的', version: 5 }),
+    'confirm',
+  );
 });
 
 test('云端版本等于 base_version 则需确认', () => {
-  const d = draftOf({ content: '草稿', base_version: 5 });
-  assert.equal(classifyRestore(d, { title: 'x', content: '云端不同', version: 5 }), 'confirm');
+  const d = draftOf({ content: '草稿', title: '标题甲', base_version: 5 });
+  assert.equal(
+    classifyRestore(d, { title: '标题甲', content: '云端不同', version: 5 }),
+    'confirm',
+  );
 });
 
 test('版本不同且内容不同则冲突', () => {

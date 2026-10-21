@@ -6,6 +6,9 @@
 node_modules/
 coverage/
 
+# 本地工具状态（WorkBuddy 工作记忆等），不入库
+.workbuddy/
+
 # 本机专属 Cargo 配置（含绝对磁盘路径，详见文件内注释）
 /.cargo/
 

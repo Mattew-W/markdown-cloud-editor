@@ -12,7 +12,8 @@ use std::io;
 
 use actix_web::{App, HttpServer, web};
 use markdown_cloud_editor::{
-    Config, configure_app, middleware::RequestIdLayer, routes::auth::AuthConfig, state::AppState,
+    Config, configure_app, middleware::RequestIdLayer, routes::auth::AuthConfig,
+    routes::auth::blocking::MAX_THREADS as BLOCKING_MAX_THREADS, state::AppState,
 };
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
@@ -56,6 +57,11 @@ async fn main() -> io::Result<()> {
     tracing::info!(%bind_addr, jwt_ttl_secs = config.jwt_ttl_secs, "starting HTTP server");
 
     // 3. HTTP 服务。
+    //
+    // `worker_max_blocking_threads` 设定每个 worker 的阻塞任务线程数。
+    // Argon2id 是内存硬度运算，若与 HTTP 事件循环共用线程，
+    // 并发认证会卡住该 worker 上分配到的无关请求（规范 §09 安全要求）。
+    // `web::block` 默认使用该池，故无需额外注册。
     HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
@@ -64,6 +70,7 @@ async fn main() -> io::Result<()> {
             .wrap(RequestIdLayer)
             .configure(configure_app)
     })
+    .worker_max_blocking_threads(BLOCKING_MAX_THREADS)
     .bind(&bind_addr)?
     .run()
     .await

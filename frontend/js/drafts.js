@@ -88,10 +88,29 @@ export class DraftStorageError extends Error {
  * @returns {StorageAdapter}
  */
 function defaultStorage() {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    throw new DraftStorageError('unavailable', '当前环境没有 localStorage');
+  // 【重要】整个获取过程必须包在 try 内。
+  //
+  // 浏览器策略（禁用 Cookie / 隐私模式 / 沙箱 iframe）会让**访问
+  // `window.localStorage` 属性本身**抛 `SecurityError`，而不是等到调用
+  // `getItem` 才抛。早期实现把属性访问写在 try 之外，于是这类环境直接漏出
+  // 原生 `DOMException`，而不是契约承诺的 `reason === 'unavailable'` 的
+  // `DraftStorageError` —— 调用方因此无法选中文案与恢复行为。
+  try {
+    if (typeof window === 'undefined') {
+      throw new DraftStorageError('unavailable', '当前环境没有 window');
+    }
+    // 再次显式取属性：'in' 判断不会触发 getter，Safari 私有模式下
+    // `window.localStorage` 的存在性检查本身就可能抛错。
+    const store = window.localStorage;
+    if (!store) {
+      throw new DraftStorageError('unavailable', '当前环境没有 localStorage');
+    }
+    return store;
+  } catch (error) {
+    // 已是本模块的错误则原样传递，避免二次包装丢失 reason。
+    if (error instanceof DraftStorageError) throw error;
+    throw classifyStorageError(error);
   }
-  return window.localStorage;
 }
 
 /**
@@ -442,27 +461,63 @@ export function discardDraft(key, expected, storage) {
 }
 
 /**
- * 清理当前会话已无用的草稿（会话 ID 不匹配的旧记录）。
+ * 清理当前会话已**显式确认**可弃用的历史草稿。
  *
- * 用于文档保存成功、或切换文档时清理上一次会话遗留的记录。
+ * ## 为什么不能按「sessionId 不同」就删（这是本模块曾经的真实缺陷）
+ *
+ * 早期实现枚举同一文档下的所有草稿，凡 `sessionId` 与当前不同的一律删除。
+ * 但 `edit_session_id` 只是「一次文档打开会话」的标识：
+ *
+ * - 同一文档在**另一个标签页**打开时，会生成新的 `edit_session_id`；
+ *     此时 A 标签页调用本函数，会把 B 标签页**尚未同步**的备份一起删掉。
+ * - `docs/SYNC.md` §9.6 与 §9.8 明确要求：**除非用户明确确认，
+ *     否则必须保留其他活动窗口的草稿**。会话 ID 不同并不等于记录已过时。
+ *
+ * 会话 ID 不同只说明「可能是残留」，不足以证明「可以删」。
+ *
+ * ## 现在的判定规则
+ *
+ * 仅当一条历史草稿满足下列**全部**条件时才删除：
+ * 1. `cloudVersion` 已给出，且该草稿的 `base_version <= cloudVersion`
+ *    —— 说明云端版本已经推进到足以覆盖这份草稿；
+ * 2. 且该草稿的 `content` 与 `title` **都**等于 `cloudContent` / `cloudTitle`
+ *    —— 内容相同才谈得上"已包含在云端"；
+ * 3. 或调用方通过 `confirmedKeys` 显式点名（用户手动确认后丢弃）。
+ *
+ * 其余一律保留，宁可残留也不误删。
  *
  * @param {{userId: string, docId: string, sessionId: string}} parts
+ * @param {object} [options]
+ * @param {{version: number, title?: string, content?: string}} [options.cloud]
+ *   云端当前状态。**不提供则不删除任何记录**（保守默认）。
+ * @param {string[]} [options.confirmedKeys] 用户已明确确认可丢弃的键。
  * @param {StorageAdapter} [storage]
- * @returns {{removed: string[]}} 被删除的键
+ * @returns {{removed: string[], kept: string[]}} 删除与保留的键
  * @throws {DraftStorageError}
  */
-export function clearSessionDrafts(parts, storage) {
-  const store = storage ?? defaultStorage();
+export function clearSessionDrafts(parts, options, storage) {
+  // 兼容旧调用方式：clearSessionDrafts(parts, storage)
+  let opts = options;
+  let store = storage;
+  if (options && typeof options.length === 'number' && typeof options.getItem === 'function') {
+    store = options;
+    opts = undefined;
+  }
+
+  const { cloud, confirmedKeys } = opts ?? {};
+  const confirmed = new Set(Array.isArray(confirmedKeys) ? confirmedKeys : []);
+  const useStore = store ?? defaultStorage();
   const prefix = `${DRAFT_KEY_PREFIX}${encodeURIComponent(parts.userId)}:${encodeURIComponent(parts.docId)}:`;
 
   const keys = [];
   try {
-    for (let i = 0; i < store.length; i += 1) {
-      const key = store.key(i);
+    for (let i = 0; i < useStore.length; i += 1) {
+      const key = useStore.key(i);
       if (typeof key !== 'string' || !key.startsWith(prefix)) continue;
       const parsed = parseDraftKey(key);
-      // 只清理「同一文档、不同会话」的记录，当前会话的草稿要保留。
-      if (parsed !== null && parsed.sessionId !== parts.sessionId) {
+      if (parsed === null || parsed.sessionId === parts.sessionId) continue;
+      // 会话不同只是「可能残留」，需再按下述条件证明其确实可弃。
+      if (confirmed.has(key) || isCoveredByCloud(useStore, key, cloud)) {
         keys.push(key);
       }
     }
@@ -473,13 +528,65 @@ export function clearSessionDrafts(parts, storage) {
   const removed = [];
   for (const key of keys) {
     try {
-      store.removeItem(key);
+      useStore.removeItem(key);
       removed.push(key);
     } catch (error) {
       throw classifyStorageError(error);
     }
   }
-  return { removed };
+
+  const kept = [];
+  try {
+    for (let i = 0; i < useStore.length; i += 1) {
+      const key = useStore.key(i);
+      if (typeof key === 'string' && key.startsWith(prefix)) kept.push(key);
+    }
+  } catch (error) {
+    throw classifyStorageError(error);
+  }
+
+  return { removed, kept };
+}
+
+/**
+ * 判定一份历史草稿是否已被云端状态覆盖、因而可以安全删除。
+ *
+ * 三个条件必须同时满足，缺一即视为「不可删」：
+ * 1. 调用方提供了云端状态（没有基准就无法判断）；
+ * 2. 云端版本已推进到 `>=` 草稿的 `base_version`
+ *    —— 云端至少不落后于草稿产生时的版本；
+ * 3. 草稿的 `content` **与 `title`** 都与云端一致。
+ *
+ * 第 3 条必须同时比标题：只比正文会把「仅改标题未保存」的草稿误删，
+ * 那正是 SYNC.md 要求草稿保护的场景之一。
+ *
+ * @param {StorageAdapter} store
+ * @param {string} key
+ * @param {{version: number, title?: string, content?: string}} [cloud]
+ * @returns {boolean}
+ */
+function isCoveredByCloud(store, key, cloud) {
+  if (!cloud || typeof cloud.version !== 'number') return false;
+
+  let record;
+  try {
+    const raw = store.getItem(key);
+    if (raw === null || raw === undefined) return false;
+    record = JSON.parse(raw);
+  } catch {
+    // 损坏记录不在此处删除：留给 discardDraft 或用户显式处理。
+    return false;
+  }
+  if (!isValidDraftRecord(record)) return false;
+
+  if (!(record.base_version <= cloud.version)) return false;
+
+  const titleMatches =
+    typeof cloud.title !== 'string' || record.title === cloud.title;
+  const contentMatches =
+    typeof cloud.content !== 'string' || record.content === cloud.content;
+
+  return titleMatches && contentMatches;
 }
 
 /**
@@ -489,7 +596,7 @@ export function clearSessionDrafts(parts, storage) {
  *
  * | 分支 | 条件 | 返回 |
  * |---|---|---|
- * | 内容与云端相同 | `draft.content === cloud.content` | `'adopt_cloud'` |
+ * | 标题与正文都与云端相同 | `draft.title === cloud.title && draft.content === cloud.content` | `'adopt_cloud'` |
  * | 云端版本等于草稿 base_version | `cloud.version === draft.base_version` | `'confirm'` |
  * | 版本不同且内容不同 | 两者都不满足 | `'conflict'` |
  *
@@ -503,7 +610,18 @@ export function clearSessionDrafts(parts, storage) {
  * @returns {'confirm'|'adopt_cloud'|'conflict'}
  */
 export function classifyRestore(draft, cloud) {
-  if (draft.content === cloud.content) {
+  // 必须同时比较标题与正文（这是本模块曾经的真实缺陷）。
+  //
+  // 早期实现只比 `content`。但 SYNC.md 明确规定标题修改同样获得草稿保护，
+  // 于是「只改了标题、正文没动」的草稿会被判成 `adopt_cloud`：
+  // 客户端采纳云端并清掉草稿 —— **用户的标题改动就这么丢了**。
+  //
+  // 两条记录本来都带 `title`，比较成本为零，没有任何理由不比。
+  const titleMatches =
+    typeof draft.title === 'string' && draft.title === cloud.title;
+  const contentMatches = draft.content === cloud.content;
+
+  if (titleMatches && contentMatches) {
     return 'adopt_cloud';
   }
   if (cloud.version === draft.base_version) {
@@ -567,12 +685,23 @@ export function createDraftWriter(options = {}) {
       writeNow();
     },
 
-    /** 立即刷新并清空待写状态。 */
+    /** 立即落盘并清空待写状态。 */
     flushAll() {
+      // 【重要】必须先 writeNow() 再清空待写状态。
+      //
+      // 早期实现只 clearTimeout + pendingDraft = null，于是
+      // 「schedule(draft) 之后立刻 flushAll()」会把定时器取消掉、
+      // 却什么都不写 —— 存储为空且报告"无待办"，
+      // 这份快照被**静默丢失**，与方法名承诺的"flush"完全相反。
+      //
+      // 「取消且不落盘」的语义已由 cancel() 提供，两者不该混同。
       if (timer !== null) {
         clearTimeout(timer);
         timer = null;
       }
+      // writeNow() 内部已把 pendingDraft 置空并写入存储，
+      // 末尾的置空只覆盖"本来就无待写"的情况。
+      writeNow();
       pendingDraft = null;
     },
 
