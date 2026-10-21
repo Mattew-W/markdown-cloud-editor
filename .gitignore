@@ -6,6 +6,9 @@
 node_modules/
 coverage/
 
+# 本机专属 Cargo 配置（含绝对磁盘路径，详见文件内注释）
+/.cargo/
+
 # Local configuration and secrets
 .env
 .env.*
@@ -16,6 +19,33 @@ coverage/
 *.p12
 *.pfx
 secrets/
+
+# 临时构建与一次性验证目录（不进仓库）
+/Temp/
+/rustbuild/
+
+# 本地研究资料：保留在本地，不自动发布
+/*.docx
+/*_extracted.txt
+/PoPL课程项目深度研究报告.md
+/report_part*.md
+
+# 发布产物/收件区：默认不进仓库；*.md、*.txt 等文本记录除外
+# Git 规则：父目录被排除后，子文件无法用 ! 重新纳入；因此根目录用白名单
+GPT_WORKSPACE/deliverables/*
+!GPT_WORKSPACE/deliverables/README.md
+!GPT_WORKSPACE/deliverables/W1-*/
+!GPT_WORKSPACE/deliverables/收件/
+!GPT_WORKSPACE/deliverables/*.md
+!GPT_WORKSPACE/deliverables/*.txt
+
+# 收件区内部：只忽略 ZIP / docx 二进制，保留 md/txt/json/js/html/yml
+GPT_WORKSPACE/deliverables/收件/**/*.zip
+GPT_WORKSPACE/deliverables/收件/**/*.docx
+
+# 大二进制产物（ZIP、docx）永不入库
+*.zip
+GPT_WORKSPACE/deliverables/**/*.docx
 
 # Local databases and editor/OS files
 *.sqlite
