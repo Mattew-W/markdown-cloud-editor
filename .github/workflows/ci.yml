@@ -35,7 +35,14 @@ env:
 jobs:
   rust:
     name: fmt / clippy / test / doc
-    runs-on: windows-latest
+    # 【为什么用 ubuntu-latest 而不是 windows-latest】
+    # 本 job 需要 PostgreSQL service container，而 GitHub Actions 的
+    # service container **仅在 Linux runner 上可用**（windows-latest 会报
+    #   Container operations are only supported on Linux runners）。
+    # 该问题已于 2026-10-21 实测发现并修正：初版配 windows-latest + services，
+    # 导致 job 在 10 秒内直接失败。
+    # 本地开发环境为 Windows，与 runner 平台无关——四条必检命令行为一致。
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     # 规范 §11：使用临时 PostgreSQL 服务、独立测试数据库和迁移步骤。
@@ -59,7 +66,9 @@ jobs:
 
     env:
       # 规范要求本地与 CI 使用同一数据库主版本。
-      TEST_DATABASE_URL: postgres://postgres:ci_test_password@127.0.0.1:5432/mce_test
+      # service container 的主机名在 Linux runner 上为 localhost。
+      TEST_DATABASE_URL: postgres://postgres:ci_test_password@localhost:5432/mce_test
+      DATABASE_URL: postgres://postgres:ci_test_password@localhost:5432/mce_test
 
     steps:
       - name: 检出代码
@@ -85,12 +94,26 @@ jobs:
 
       # 规范 §11：迁移与测试指向同一测试 schema。
       - name: 应用数据库迁移
-        shell: pwsh
+        # 迁移必须在真实 PostgreSQL 上执行，失败即整体失败（ON_ERROR_STOP=1）。
+        # 用 PGPASSWORD 环境变量传口令，避免把口令写进命令行历史。
+        # 变量赋值写法（`KEY=value command` 前缀）仅 POSIX shell 支持，
+        # 因此本步骤不指定 shell，Linux runner 默认 bash。
+        env:
+          PGPASSWORD: ci_test_password
         run: |
-          # Windows runner 自带 psql 客户端（随 PostgreSQL 安装）。
-          $env:PGPASSWORD = 'ci_test_password'
-          psql -h 127.0.0.1 -U postgres -d mce_test -v ON_ERROR_STOP=1 `
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
             -f migrations/0001_init.sql
+
+      # 迁移落地后核对：表与索引是否真的建出来了。
+      # 缺 Cargo.toml、测试服务不可用或必需脚本未配置必须明确失败，
+      # 不得报告为通过（规范 §11）。
+      - name: 核对迁移结果
+        env:
+          PGPASSWORD: ci_test_password
+        run: |
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;" \
+            -c "SELECT indexname FROM pg_indexes WHERE tablename='documents';"
 
       # ---------- 必检 1/4：格式 ----------
       - name: cargo fmt --check
