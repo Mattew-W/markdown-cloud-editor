@@ -146,6 +146,13 @@ jobs:
   #
   # 规范 §11 把前端 JS 单列一类。drafts.js 是 M6 交付物，
   # 其六条硬约束（零 DOM、不读 token、存储注入）由测试保证。
+  #
+  # 【为什么本 job 不用 actions/setup-node】
+  # 2026-10-21 实测：写 `cache: 'none'` 时 setup-node@v4 会报
+  #   ##[error]Caching for 'none' is not supported
+  # 导致 job 在 5 秒内失败。本项目前端零运行时依赖（marked 与 DOMPurify
+  # 由 M5 阶段以本地文件方式引入），GitHub runner 已预装 Node，
+  # 因此直接用 `node --test`，不引入 setup-node 步骤。
   # ------------------------------------------------------------------
   frontend:
     name: frontend checks
@@ -156,14 +163,10 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 安装 Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'none'
+      - name: 显示 Node 版本
+        run: node --version
 
-      # 无需 npm install：本项目前端零运行时依赖（marked 与 DOMPurify
-      # 由 M5 阶段以本地文件方式引入），测试直接用 node --test。
+      # 无需 npm install：本项目前端零运行时依赖，测试直接用 node --test。
       - name: 草稿层单元测试
         run: node --test frontend/js/tests/drafts.test.js
 
