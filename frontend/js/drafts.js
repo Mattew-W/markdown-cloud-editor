@@ -581,12 +581,20 @@ function isCoveredByCloud(store, key, cloud) {
 
   if (!(record.base_version <= cloud.version)) return false;
 
-  const titleMatches =
-    typeof cloud.title !== 'string' || record.title === cloud.title;
-  const contentMatches =
-    typeof cloud.content !== 'string' || record.content === cloud.content;
+  // 【必须同时要求 cloud 提供 title 与 content，且都与草稿相等】
+//
+// 反例警示（修复本缺陷前一版写法）：
+//   const titleMatches = typeof cloud.title !== 'string' || record.title === cloud.title;
+// 把「字段缺失」当成「匹配」，于是调用方只传 `{ cloud: { version: 1 } }`
+// 就能让 base_version ≤ 1 的所有他人草稿被删除——比修复前更危险。
+//
+// 删除是不可逆动作，无法用「宁可残留」的保守策略兜底，
+// 因此基准必须**完整**：两个字段缺一不可，缺一即视为不可删。
+if (typeof cloud.title !== 'string' || typeof cloud.content !== 'string') {
+    return false;
+}
 
-  return titleMatches && contentMatches;
+return record.title === cloud.title && record.content === cloud.content;
 }
 
 /**
@@ -657,8 +665,16 @@ export function createDraftWriter(options = {}) {
   function writeNow() {
     if (pendingDraft === null) return;
     const draft = pendingDraft;
-    pendingDraft = null;
+    // 【重要】先写、后清。
+    //
+    // 早期实现先把 pendingDraft 置空再 saveDraft。若存储配额耗尽或临时不可用，
+    // saveDraft 抛错，而唯一的那份快照已经被清掉了：
+    // pending() 于是返回 false，存储恢复后再调 flush() 什么也写不出来——
+    // 这份草稿**永久丢失**，正是草稿机制要防的情况。
+    //
+    // 现在只在写入成功后才清空待写状态，失败时保留它供重试。
     saveDraft(draft, store);
+    pendingDraft = null;
   }
 
   return {

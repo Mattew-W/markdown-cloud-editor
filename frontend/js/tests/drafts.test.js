@@ -326,6 +326,79 @@ test('clearSessionDrafts 支持显式确认丢弃', () => {
   assert.equal(removed.length, 1);
 });
 
+test('clearSessionDrafts 云端字段缺失时不得删除（回归）', () => {
+  // 回归测试（PR #3 二次审查 P1）：修复"只比 content"那一版里，
+  // 判定写成了 `typeof cloud.title !== 'string' || ...`，
+  // 把「字段缺失」当成「匹配」——
+  // 于是只传 { cloud: { version: 1 } } 就能删掉 base_version ≤ 1 的他人草稿，
+  // 比修复前更危险。删除不可逆，必须要求基准完整。
+  const store = makeStorage();
+  saveDraft(draftOf({ sessionId: SESS_2, content: 'unsaved' }), store);
+
+  const onlyVersion = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    { cloud: { version: 1 } },
+    store,
+  );
+  assert.equal(onlyVersion.removed.length, 0, '云端只给 version 时不得删除');
+
+  const onlyContent = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    { cloud: { version: 1, content: 'unsaved' } },
+    store,
+  );
+  assert.equal(onlyContent.removed.length, 0, '缺 title 时不得删除');
+
+  const onlyTitle = clearSessionDrafts(
+    { userId: USER_A, docId: DOC_1, sessionId: SESS_1 },
+    { cloud: { version: 1, title: '标题' } },
+    store,
+  );
+  assert.equal(onlyTitle.removed.length, 0, '缺 content 时不得删除');
+
+  assert.equal(
+    listDrafts({ userId: USER_A, docId: DOC_1 }, store).length,
+    1,
+    '草稿必须还在',
+  );
+});
+
+test('writeNow 写失败时保留待写快照以供重试（回归）', () => {
+  // 回归测试（PR #3 二次审查 P2）：早期实现先清 pendingDraft 再 saveDraft，
+  // 存储故障时唯一快照被清掉，pending() 变 false，
+  // 存储恢复后再 flush() 也写不出来 —— 草稿永久丢失。
+  let fail = true;
+  const inner = makeStorage();
+  const flaky = {
+    get length() { return inner.length; },
+    key: (i) => inner.key(i),
+    getItem: (k) => inner.getItem(k),
+    setItem: (k, v) => {
+      if (fail) {
+        const e = new Error('quota');
+        e.name = 'QuotaExceededError';
+        throw e;
+      }
+      inner.setItem(k, v);
+    },
+    removeItem: (k) => inner.removeItem(k),
+  };
+
+  const writer = createDraftWriter({ storage: flaky, delay: () => 1 });
+  writer.schedule(draftOf({ content: '别丢我' }));
+
+  // 第一次 flush：写入应失败
+  assert.throws(() => writer.flush(), (e) => e instanceof DraftStorageError);
+
+  // 故障排除后再 flush：必须能把这份草稿写出去
+  fail = false;
+  writer.flush();
+
+  const saved = listDrafts({ userId: USER_A }, inner);
+  assert.equal(saved.length, 1, '恢复后必须补写成功');
+  assert.equal(saved[0].content, '别丢我');
+});
+
 test('clearSessionDrafts 不影响其他文档', () => {
   const store = makeStorage();
   saveDraft(draftOf({ docId: DOC_1, sessionId: SESS_2 }), store);
