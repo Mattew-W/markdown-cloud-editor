@@ -1,0 +1,156 @@
+# Rust CI
+#
+# 规范 §11 规定的四条必检命令，全部真实执行：
+#   cargo fmt --check
+#   cargo clippy --locked --all-targets -- -D warnings
+#   cargo test --locked
+#   cargo doc --locked --no-deps
+#
+# 关键约束（均为规范硬性要求，勿简化）：
+#   · --locked 要求仓库内已有 Cargo.lock。应用 crate 的 lock 文件必须入库，
+#     否则 CI 全红。本仓库已在首次提交中包含 Cargo.lock。
+#   · RUSTDOCFLAGS=-D warnings + 库级 #![warn(missing_docs)]：
+#     公开项缺 Rustdoc 会让文档任务失败。
+#   · 缺少 Cargo.toml、测试服务不可用或必需脚本未配置，必须**明确失败**，
+#     不得报告为通过；禁止添加总是成功的占位脚本。
+#   · 单元测试用可控时钟模拟防抖与重试，不依赖真实等待。
+#
+# 状态检查名称固定为 `Rust checks`，与 `Frontend checks` 一并作为分支必需检查。
+
+name: Rust checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  rust:
+    name: fmt / clippy / test / doc
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    # 规范 §11：使用临时 PostgreSQL 服务、独立测试数据库和迁移步骤。
+    # 不得借用开发者数据库或生产密钥。
+    # §12：最终验收必须连接真实后端和数据库，故本 job 必定真实执行。
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          # 本 job 的一次性测试密码，非任何真实凭据。
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: mce_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # 规范要求本地与 CI 使用同一数据库主版本。
+      TEST_DATABASE_URL: postgres://postgres:ci_test_password@127.0.0.1:5432/mce_test
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      # Windows runner 默认工具链即 msvc，无需额外指定。
+      # rust-toolchain 文件中的 target 会被自动应用。
+      - name: 显示工具链信息
+        run: |
+          rustc --version --verbose
+          cargo --version
+
+      - name: 缓存 cargo 依赖与构建产物
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      # 规范 §11：迁移与测试指向同一测试 schema。
+      - name: 应用数据库迁移
+        shell: pwsh
+        run: |
+          # Windows runner 自带 psql 客户端（随 PostgreSQL 安装）。
+          $env:PGPASSWORD = 'ci_test_password'
+          psql -h 127.0.0.1 -U postgres -d mce_test -v ON_ERROR_STOP=1 `
+            -f migrations/0001_init.sql
+
+      # ---------- 必检 1/4：格式 ----------
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      # ---------- 必检 2/4：静态检查（警告视为错误） ----------
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      # ---------- 必检 3/4：测试 ----------
+      # 不加 --all-targets 时 cargo test 默认只跑 bin target，
+      # 库内单测会被静默跳过（退出码仍为 0）。此处显式覆盖全部目标。
+      - name: cargo test
+        run: cargo test --locked --all-targets
+
+      # 数据库集成测试默认 #[ignore]（无本地库时跳过）。
+      # CI 有 postgres 服务容器，故此处**必定真实执行**——
+      # 规范 §11/§12 不允许这些用例被静默跳过。
+      - name: cargo test（真实数据库）
+        run: cargo test --locked --all-targets -- --ignored
+
+      # ---------- 必检 4/4：文档 ----------
+      - name: cargo doc
+        run: cargo doc --locked --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # ------------------------------------------------------------------
+  # 前端草稿层检查
+  #
+  # 规范 §11 把前端 JS 单列一类。drafts.js 是 M6 交付物，
+  # 其六条硬约束（零 DOM、不读 token、存储注入）由测试保证。
+  # ------------------------------------------------------------------
+  frontend:
+    name: frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'none'
+
+      # 无需 npm install：本项目前端零运行时依赖（marked 与 DOMPurify
+      # 由 M5 阶段以本地文件方式引入），测试直接用 node --test。
+      - name: 草稿层单元测试
+        run: node --test frontend/js/tests/drafts.test.js
+
+      # 硬约束的机器校验：drafts.js 不得出现 DOM 操作。
+      # 这条比人眼审阅可靠——M6 W1 就因直接操作 DOM 被判返工。
+      - name: 校验 drafts.js 零 DOM
+        run: |
+          if grep -nE 'document\.|getElementById|addEventListener' frontend/js/drafts.js; then
+            echo "::error::drafts.js 出现 DOM 操作，违反 INTERFACES.md §2.2 硬约束 1"
+            exit 1
+          fi
+          echo "零 DOM 校验通过"
+

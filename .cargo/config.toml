@@ -1,0 +1,21 @@
+# Cargo 构建配置
+#
+# 为什么保留这一段：
+# 本仓库曾在含中文字符的路径下（D:\WORKbuddy1\RUST编写大作业），本机 Rust 使用 GNU 工具链
+# （mingw-w64 链接器），对非 ASCII 路径处理有缺陷，表现为编译到链接阶段报
+#   ld: cannot find ...\target\debug\deps\libfoo.rlib: No such file or directory
+#   ld: cannot open output file ...\target\debug\...\xxx.exe: No such file or directory
+# 这与代码本身无关，把项目放到纯 ASCII 路径即可正常编译。
+#
+# 仓库已于 2026-10-20 改名为 D:\WORKbuddy1\RUST（纯 ASCII），本配置予以保留：
+# 若日后再次移动到含中文的路径，可继续生效，不必重新排查该问题。
+#
+# 已实测（本机 rustc/cargo 1.99.0，GNU 工具链）：
+#   · 中文路径下不设 target-dir       → 链接失败
+#   · target-dir 设为相对路径 "../x"  → 失败。链接器解析 ".." 后仍会拼上含中文的上级目录
+#   · target-dir 设为绝对 ASCII 路径  → 从零全量编译通过
+#
+# 因此 target-dir 必须是绝对路径，且不能含中文。
+# 产物落在仓库之外，不会被 Git 跟踪，也不污染工作区。
+[build]
+target-dir = "D:/rustbuild/m1"

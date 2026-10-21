@@ -1,0 +1,59 @@
+[package]
+name = "markdown-cloud-editor"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "Web-based Markdown editor with cloud sync"
+license = "MIT"
+publish = false
+
+[lib]
+name = "markdown_cloud_editor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "markdown-cloud-editor"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP 服务
+actix-web = "4.11"
+# 数据库访问（运行时查询，不使用编译期校验宏，故无需 cargo sqlx prepare）
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "macros",
+    "migrate",
+] }
+# 认证
+argon2 = "0.5"
+jsonwebtoken = "9"
+# M3 交付的密码模块直接依赖 rand_core::OsRng 生成盐。
+rand_core = { version = "0.6", features = ["getrandom"] }
+# 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 基础类型
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+# 错误与日志
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# 环境变量
+dotenvy = "0.15"
+
+[dev-dependencies]
+actix-rt = "2"
+# auth_db.rs 的泛型签名需要引用 init_service 返回类型所实现的
+# Service<actix_http::Request>，该类型由 actix-http 定义而非 actix-web re-export。
+actix-http = "3"
+# token 测试用 base64 手工构造 alg=none 与篡改载荷的伪造 token
+base64 = "0.22"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
