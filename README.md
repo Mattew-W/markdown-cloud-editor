@@ -1,38 +1,58 @@
-# Web-based Markdown Editor with Cloud Sync
+# Markdown Cloud Editor
 
-A collaborative course project for editing Markdown in the browser and syncing documents to a cloud service.
+A web-based Markdown editor with cloud sync, built as a university course project.
 
-## Planned stack
+## Project status
 
-- Backend: Rust with Actix Web or Rocket (framework to be selected by the team)
-- Database: PostgreSQL, accessed through `sqlx`
-- Frontend: HTML, CSS, and JavaScript
-- Markdown rendering: a maintained library such as `marked`
-- Authentication: JWT
-- CI: GitHub Actions
+The repository contains a Rust API built with Actix Web, PostgreSQL migrations, authentication and health endpoints, a frontend draft-storage module, and CI workflows.
 
-The repository currently contains collaboration and design guidance. Application code and the final framework choice have not yet been added.
+Document endpoints and API rate limiting are still in progress. See the implementation status in [docs/API.md](docs/API.md) and the contracts index in [docs/README.md](docs/README.md).
 
-## Prerequisites
+## Quick start
 
-Install Rust stable with `rustup`, PostgreSQL, and Git. If the frontend later adds a JavaScript package manager, install the version specified by its package metadata.
+### Requirements
 
-## Configuration
+- The Rust toolchain specified in Cargo.toml
+- PostgreSQL 17 for the application and database-backed tests
+- Node.js 24 for frontend checks
 
-Copy `.env.example` to `.env`, then set local PostgreSQL connection values. Keep `.env` private; never commit real passwords, tokens, or signing keys. The example values are placeholders and are not production credentials.
+### Configure and run
 
-## Database
+1. Copy .env.example to .env.
+2. Set DATABASE_URL to a local PostgreSQL database and replace JWT_SECRET with a random secret of at least 32 bytes.
+3. Create the database and apply the migration as described in [docs/LOCAL_POSTGRES.md](docs/LOCAL_POSTGRES.md).
+4. Start the API from the repository root:
 
-Create a local database, for example `markdown_editor`, and set `DATABASE_URL` in `.env`. The project should use versioned SQL migrations through `sqlx`. See [docs/DATABASE.md](docs/DATABASE.md).
+        cargo run --locked
 
-## Run
+The default development address is http://127.0.0.1:8080.
 
-Once the Rust application is added, run it from the directory containing its `Cargo.toml` with `cargo run` (or the framework-specific command documented by that crate). Serve the frontend using the method selected by the team. Exact commands will be added when the application layout and framework are chosen.
+### Checks
 
-## Checks
+Run the Rust checks from the repository root:
 
-The `Frontend checks` GitHub Actions workflow runs the current frontend draft unit suite with Node.js 24 when that module exists. Rust checks will become required when a Rust crate and a real Rust CI job are present.
+        cargo fmt --check
+        cargo clippy --locked --all-targets -- -D warnings
+        cargo test --locked --all-targets
+        cargo doc --locked --no-deps
 
-## Collaboration
+Database-backed tests require TEST_DATABASE_URL and a running PostgreSQL 17 instance:
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before working. All changes go through a pull request to `main`; the repository owner reviews and merges them after required checks pass. No second GitHub approval is required.
+        cargo test --locked --all-targets -- --ignored
+
+Run the frontend draft tests with Node.js:
+
+        node --test frontend/js/tests/drafts.test.js
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| src/ | Rust API, authentication, middleware, and repositories |
+| frontend/js/ | Frontend draft-storage module and tests |
+| migrations/ | PostgreSQL schema and verification scripts |
+| tests/ | API and database integration tests |
+| docs/ | Project contracts, architecture, setup, and implementation status |
+| GPT_WORKSPACE/ | Archived course submissions and review records |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch and review process.
