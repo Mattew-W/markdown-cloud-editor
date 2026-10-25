@@ -1,0 +1,65 @@
+M2_W1 交付说明
+==================================================
+
+姓名/编号：M2 提交人[学号已脱敏]日期：2026-10-20
+任务：M2 本周本地任务——数据库字段和 SQL 草稿
+项目：Markdown 云同步编辑器（六人课程项目）
+
+一、完成项
+1. 字段说明.md
+   - users：id、username、password_hash、created_at 的用途、建议类型、是否必填。
+   - documents：id、owner_id、title、content、version、created_at、updated_at 的用途、建议类型、是否必填。
+   - 用通俗话解释用户名唯一、文档归属、密码哈希、版本号。
+   - 两组虚构用户与文档示例（不对应真实账号）。
+   - 表间关联说明和 7 条待确认问题。
+
+2. schema-draft.sql
+   - 创建 users、documents 两张表。
+   - 含主键、用户名唯一约束、owner_id 外键（ON DELETE RESTRICT）、version > 0 约束。
+   - 另含用户名格式、标题非空、正文 256 KiB 上限约束，以及列表查询复合索引。
+   - 未包含后端查询、接口或 Rust 数据模型。
+
+3. 检查记录.md
+   - 记录实际执行的环境检查命令与输出。
+   - 因本机未安装 PostgreSQL/Docker，建表与约束测试均标记为“未执行”。
+   - 附交给 M1 的复测步骤和预期 SQLSTATE。
+
+4. 交付说明.txt（本文件）
+
+二、打开或运行方法
+1. 查看文档：用 VS Code 或记事本打开 字段说明.md、检查记录.md。
+2. 查看 SQL：用 VS Code 打开 schema-draft.sql，或直接阅读文本。
+3. 运行 SQL（需 PostgreSQL 17 系列练习库）：
+   createdb -U postgres m2_practice
+   psql -U postgres -d m2_practice -f schema-draft.sql
+4. 本机当前没有 PostgreSQL 客户端和服务端，上述运行未执行；安装后可按下节和《检查记录.md》复测。
+
+三、没完成的地方
+- schema-draft.sql 未在真实 PostgreSQL 中执行，状态为“未执行”，不是“已验证”。
+- 本机未安装 PostgreSQL/Docker，未生成数据库环境或连接配置。
+- 姓名/编号尚未填写，请在打包前补上。
+- id 默认值、用户名格式约束、content 大小检查、复合索引等属于建议，需 M1 最终确认。
+- 按要求未编写后端查询、接口或 Rust 数据模型。
+
+四、使用了哪些 AI
+- Claude Code（Cherry Studio 智能体，模型标识 deepseek-flash[1m]）。
+- 用途：根据任务说明和项目规范生成字段说明、SQL 草稿和文档初稿。
+- 说明：AI 生成内容需由本人复核后再交付；SQL 未执行，不能把 AI 生成当作检查通过。
+
+五、打包清单
+M2_W1/
+  字段说明.md
+  schema-draft.sql
+  检查记录.md
+  交付说明.txt
+
+打包要求：
+- 压缩为 M2_W1_姓名_20261025.zip 交给 M1。
+- 不放入 target、node_modules、.git、真实 .env、密钥、账号密码或个人资料。
+- 本次没有依赖安装，因此没有锁文件；无需附带运行配置。
+- 返工时使用 v2、v3，不覆盖上一版。
+
+六、交付前自检提醒
+- 自己打开四个文件各看一遍，确认姓名和日期正确。
+- 用自己的话说明 owner_id（文档属于哪个用户）和 version（第几次保存，用于防止覆盖）。
+- 演示时说明：SQL 在哪里、如何运行、为什么本次显示“未执行”。

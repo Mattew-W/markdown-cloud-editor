@@ -1,0 +1,87 @@
+M1 阶段完成汇报（2026-10-21）
+项目：Web-based Markdown Editor with Cloud Sync（PoPL P10）
+分支 codex/architecture｜HEAD a1d408d
+
+【一、结论】
+M1 工程主干已完成并全部实测通过。规范四条必检命令本机实跑退出码全为 0；
+另有 9 个需真实数据库的用例已连 PostgreSQL 17.11 全部通过。
+
+【二、已完成交付（22 项）】
+1  Cargo.toml / Cargo.lock         应用 crate，lock 已入库
+2  src/lib.rs / src/main.rs        app 组装 + 入口，missing_docs 已配
+3  src/config.rs                   密钥闸门 5 项，缺失/占位/过短一律拒绝启动
+4  src/error.rs                    9 变体 → 状态码 + 错误码映射
+5  src/state.rs                    AppState { db: PgPool }
+6  src/middleware.rs               request_id + X-Request-Id 回写
+7  src/routes/health.rs            DB 不可达返回 503，不谎报健康
+8  src/auth/password.rs            M3 v2 迁入，Argon2id PHC
+9  src/auth/token.rs               HS256，校验 exp/sub/iss/aud，TTL 1 小时
+10 src/auth/dto.rs                 用户名 trim+转小写，密码按字节 12–128 不 trim
+11 src/repositories/users.rs       唯一冲突映射 USERNAME_TAKEN
+12 src/routes/auth.rs              注册 201 / 登录 200 / 重名 409 / 登录错统一 401
+13 migrations/0001_init.sql        M2 草稿迁为正式迁移，真实 PG 已执行
+14 migrations/verify_constraints.sql  10 项约束实测脚本
+15 docs/ 7 份契约                 API/ARCHITECTURE/DATABASE/INTERFACES/SYNC/PROJECT_SPEC/LOCAL_POSTGRES
+16 docs/INTERFACES.md             M3 密码签名 + M6 drafts.js 导出签名（C1–C9）已冻结
+17 .github/workflows/ci.yml        Rust checks job
+18 .cargo/config.toml              target-dir 重定向 ASCII 路径
+19 scripts/check.ps1 / dev.ps1    分层脚本，含实测计时
+20 frontend/js/drafts.js           按契约重写，零 DOM ES Module，37 单测通过
+21 PostgreSQL 17.11 本机环境       PostgreSQL 17 本机安装目录，服务运行中
+
+【三、未开始（3 项，均有外部依赖）】
+· documents 路由 + 乐观锁      依赖 M4 document service 收件
+· sync.js 自动保存状态机        依赖 M5 页面、M6 API client 收件
+· 系统 E2E / 报告 / PPT         依赖前后端齐备
+（说明：M4、M5 尚未收件，未对其做任何假定）
+
+【四、真实执行数据】
+四条必检（scripts/check.ps1）：
+  cargo fmt --check ................................ 退出码 0
+  cargo clippy --locked --all-targets -D warnings ... 退出码 0
+  cargo test --locked --all-targets ................ 退出码 0
+  cargo doc --locked --no-deps ...................... 退出码 0
+
+测试数量：
+  单元测试 ................ 57 passed / 0 failed
+  需真实数据库（--ignored）.. 9 passed / 0 failed
+  前端草稿模块（node --test）.. 37 passed / 0 failed
+
+数据库约束实测（PG 17.11，10 项全符合预期）：
+  用户名含大写 → 拒绝     用户名过短 → 拒绝
+  用户名重复   → 拒绝     标题纯空白 → 拒绝
+  标题全角空格 U+3000 → 拒绝
+  version=0    → 拒绝     正文 262145 字节 → 拒绝
+  正文 262144 字节 → 允许（边界值合法）
+  外键指向不存在用户 → 拒绝
+  正文空串     → 允许
+另核实：索引 (owner_id, updated_at DESC, id DESC) 符合规范；触发器数量 = 0（规范禁止）
+
+【五、过程中实测发现并修正的缺陷】
+数据库层 Unicode 空白防护不足（真实发现，非推测）：
+  初版 btrim(title, E' \t\n\r') 只覆盖 ASCII 空白。
+  实测插入 title = U+3000（全角空格）成功，title_hex = e38080，
+  达不到规范「去首尾空白后 1–255 字符」要求。
+  已改为显式 Unicode 空白列表，5e 用例现正确拒绝。
+局限（如实标注）：PG 17 无完整 Unicode 属性表，无法用 \p{Z} 一次匹配全部空白。
+  应用层是唯一真防线——Rust 侧用 char::is_whitespace 做完整判定。
+
+【六、风险与应对】
+· 中文路径致 Rust 链接失败 → 已实测：相对路径 target-dir 会失效（链接器解析 .. 后
+  仍拼上中文上级目录），必须绝对 ASCII 路径。当前 [本机 ASCII 构建目录]
+· --locked 依赖 Cargo.lock 入库 → 已入库，四条命令均实跑通过
+· missing_docs 配 -D warnings 打红 → lib.rs 已配，doc 任务退出码 0
+· CI 与本地 PG 版本一致 → 本机 17.11，CI 用 postgres:17 容器
+· 远程两条历史无共同祖先 → 禁强推、禁 --allow-unrelated-histories，一律走 PR
+
+【七、下一步】
+1 接 M4 → documents 路由、owner-scoped 仓储、乐观锁原子更新
+2 接 M5/M6 → sync.js：1.5s 防抖 + 5s max-wait + 每文档 1 在途 + 只确认发送时 local_revision
+3 系统 E2E → 双账号全流程 + 越权 404 + 版本冲突 409
+4 Rust checks 真实跑绿后设为分支必需检查
+5 报告 / PPT / 演示材料
+
+文案红线（规范 §08）：本地备份成功不能显示成云端保存成功。
+
+本表所有测试结果、约束实测、工具链版本均为本机真实执行输出；
+未执行项已明确标注为「未开始」。未使用任何测试替身。
