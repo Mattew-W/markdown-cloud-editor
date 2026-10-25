@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>M6 W1 本地草稿演示</title>
+</head>
+<body>
+    <div>
+        <p>⚠️只保存在当前浏览器，不是云同步，换设备/无痕模式草稿会丢失</p >
+        <textarea id="editor" rows="12" cols="80" placeholder="在这里输入Markdown内容"></textarea>
+        <div style="margin:8px 0;">
+            <button id="btnSave">保存到本机</button>
+            <button id="btnLoad">读取本机草稿</button>
+            <button id="btnClear">清除本机草稿</button>
+        </div>
+        <div id="msg"></div>
+    </div>
+    <script src="./drafts.js"></script>
+</body>
+</html>
