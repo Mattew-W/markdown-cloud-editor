@@ -1,120 +1,100 @@
-# PostgreSQL 17 静默安装脚本（装到 D 盘）
+# PostgreSQL 17 unattended installer helper for Windows.
 #
-# 依据规范 §03（数据库固定 PostgreSQL 17 系列）与 §11（本地与 CI 一致）。
-# 幂等：已安装则直接退出。
+# Download the official PostgreSQL 17 installer and pass its path with -Installer.
+# The default install prefix is under Program Files; override it if needed.
 #
-# 用法：
-#   pwsh -NoProfile -File scripts\install_postgres.ps1
-#   pwsh -NoProfile -File scripts\install_postgres.ps1 -SuperPassword "你的密码"
-
+# Example:
+#   pwsh -NoProfile -File scripts/install_postgres.ps1 -Installer <installer-path>
+#
 param(
-    # 超级用户密码。留空则随机生成并打印（仅本机开发用）。
     [string]$SuperPassword = '',
-
-    # 安装前缀（装到 D 盘）
-    [string]$Prefix = 'D:\PostgreSQL\17',
-
-    # 数据目录
-    [string]$DataDir = 'D:\PostgreSQL\17\data',
-
-    # 端口
+    [string]$Prefix = (Join-Path $env:ProgramFiles 'PostgreSQL\17'),
+    [string]$DataDir = '',
     [int]$Port = 5432,
-
-    # Windows 服务名
     [string]$ServiceName = 'postgresql-x64-17',
-
-    # 安装包路径
-    [string]$Installer = 'D:\installers\postgresql-17.11-5-windows-x64.exe'
+    [string]$Installer = (Join-Path $PSScriptRoot 'postgresql-17.11-5-windows-x64.exe')
 )
 
 $ErrorActionPreference = 'Stop'
 
-# ---------- 0. 前置检查 ----------
+if ([string]::IsNullOrWhiteSpace($DataDir)) {
+    $DataDir = Join-Path $Prefix 'data'
+}
+
 $psql = Join-Path $Prefix 'bin\psql.exe'
-if (Test-Path $psql) {
-    Write-Host "PostgreSQL 已安装在 $Prefix，跳过安装。" -ForegroundColor Green
+if (Test-Path -LiteralPath $psql) {
+    Write-Host "PostgreSQL is already installed at $Prefix."
     & $psql --version
     exit 0
 }
 
-if (-not (Test-Path $Installer)) {
-    Write-Host "找不到安装包：$Installer" -ForegroundColor Red
-    Write-Host "请先下载 PostgreSQL 17.11 Windows x64 安装包到该路径。" -ForegroundColor Yellow
+if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {
+    Write-Error "Installer not found: $Installer. Download PostgreSQL 17 and pass its path with -Installer."
     exit 1
 }
 
-# 目标盘剩余空间检查（安装 + 初始化约需 1.5 GB）
-$drive = (Split-Path $Prefix -Qualifier).TrimEnd(':')
-$freeGB = [math]::Round((Get-PSDrive $drive).Free / 1GB, 1)
-Write-Host "$drive 盘剩余 $freeGB GB"
+$drive = (Split-Path -Path $Prefix -Qualifier).TrimEnd(':')
+if (-not $drive) {
+    Write-Error 'Prefix must be on a local drive.'
+    exit 2
+}
+$driveInfo = Get-PSDrive -Name $drive -ErrorAction Stop
+$freeGB = [math]::Round($driveInfo.Free / 1GB, 1)
+Write-Host "$drive drive free space: $freeGB GB"
 if ($freeGB -lt 3) {
-    Write-Host "空间不足，至少需要 3 GB。" -ForegroundColor Red
+    Write-Error 'At least 3 GB of free space is required.'
     exit 1
 }
 
-# ---------- 1. 生成密码 ----------
 if ([string]::IsNullOrWhiteSpace($SuperPassword)) {
-    # 本机开发用：生成 24 字节随机 base64，不打印明文，只提示重新生成的方式。
     $bytes = [System.Security.Cryptography.RandomNumberGenerator]::GetBytes(24)
-    $SuperPassword = [Convert]::ToBase64String($bytes).Replace('+','A').Replace('/','B').Replace('=','')
-    Write-Host "未提供密码，已自动生成 24 字节随机密码。" -ForegroundColor Yellow
-    Write-Host "该密码只写入本机 .env，不会提交到仓库。" -ForegroundColor Yellow
+    $SuperPassword = [Convert]::ToBase64String($bytes).Replace('+', 'A').Replace('/', 'B').Replace('=', '')
+    Write-Host 'Generated a local-only PostgreSQL password. Store it in .env; do not commit it.'
 }
 
-# ---------- 2. 静默安装 ----------
-# EDB 安装包是 BitRock InstallBuilder，参数为：
-#   --mode unattended            静默模式
-#   --prefix                     安装目录
-#   --datadir                    数据目录
-#   --superpassword              超级用户密码
-#   --serverport                 端口
-#   --servicename                服务名
-#   --disable-components         跳过 Stack Builder 界面
-$args = @(
+function ConvertTo-WindowsCommandLineArgument {
+    param([Parameter(Mandatory)][string]$Value)
+
+    $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+    $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
+    return '"' + $escaped + '"'
+}
+
+$installerArgs = @(
     '--mode', 'unattended',
     '--prefix', $Prefix,
     '--datadir', $DataDir,
     '--superpassword', $SuperPassword,
-    '--serverport', $Port,
+    '--serverport', "$Port",
     '--servicename', $ServiceName,
     '--disable-components', 'stackbuilder'
 )
+$argumentLine = ($installerArgs | ForEach-Object {
+    ConvertTo-WindowsCommandLineArgument -Value "$_"
+}) -join ' '
 
-Write-Host "开始安装 PostgreSQL 17 到 $Prefix ..." -ForegroundColor Cyan
-Write-Host "这会写入 Windows 服务注册项，约需 2–4 分钟。" -ForegroundColor Yellow
 
-$proc = Start-Process -FilePath $Installer -ArgumentList $args -Wait -PassThru
-Write-Host "安装程序退出码：$($proc.ExitCode)"
-
-if ($proc.ExitCode -ne 0) {
-    Write-Host "安装失败。退出码 $($proc.ExitCode)" -ForegroundColor Red
-    Write-Host "可改用图形界面手动安装：" -ForegroundColor Yellow
-    Write-Host "  $Installer" -ForegroundColor Yellow
-    Write-Host "目标目录填 $Prefix，数据目录填 $DataDir" -ForegroundColor Yellow
-    exit $proc.ExitCode
+Write-Host "Installing PostgreSQL 17 to $Prefix ..."
+$process = Start-Process -FilePath $Installer -ArgumentList $argumentLine -Wait -PassThru
+if ($process.ExitCode -ne 0) {
+    Write-Error "Installer exited with code $($process.ExitCode)."
+    exit $process.ExitCode
 }
 
-# ---------- 3. 验证 ----------
-if (-not (Test-Path $psql)) {
-    Write-Host "安装程序已退出，但未找到 $psql。请检查安装是否真的完成。" -ForegroundColor Red
+if (-not (Test-Path -LiteralPath $psql -PathType Leaf)) {
+    Write-Error "Installer completed but psql was not found at $psql."
     exit 1
 }
 
-Write-Host ""
-Write-Host "安装完成：" -ForegroundColor Green
+Write-Host 'Installation complete.'
 & $psql --version
-Write-Host "安装目录：$Prefix"
-Write-Host "数据目录：$DataDir"
-Write-Host "服务名：  $ServiceName"
-Write-Host "端口：    $Port"
-
-$svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($svc) {
-    Write-Host "服务状态：$($svc.Status)"
+Write-Host "Install prefix: $Prefix"
+Write-Host "Data directory: $DataDir"
+Write-Host "Service name: $ServiceName"
+Write-Host "Port: $Port"
+$service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($service) {
+    Write-Host "Service status: $($service.Status)"
 } else {
-    Write-Host "警告：未找到服务 $ServiceName，可用 pg_ctl 手动启动。" -ForegroundColor Yellow
+    Write-Warning "Service $ServiceName was not found. Check the name selected by the installer."
 }
-
-Write-Host ""
-Write-Host "下一步：把密码写入项目 .env 的 DATABASE_URL（该文件不会提交）。" -ForegroundColor Cyan
-exit 0
