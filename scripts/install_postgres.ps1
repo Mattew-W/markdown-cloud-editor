@@ -52,18 +52,52 @@ if ([string]::IsNullOrWhiteSpace($SuperPassword)) {
     Write-Host 'Generated a local-only PostgreSQL password. Store it in .env; do not commit it.'
 }
 
+function ConvertTo-WindowsCommandLineArgument {
+    param([Parameter(Mandatory)][string]$Value)
+
+    $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+    $escaped = [regex]::Replace($escaped, '(\\+)
+if ($process.ExitCode -ne 0) {
+    Write-Error "Installer exited with code $($process.ExitCode)."
+    exit $process.ExitCode
+}
+
+if (-not (Test-Path -LiteralPath $psql -PathType Leaf)) {
+    Write-Error "Installer completed but psql was not found at $psql."
+    exit 1
+}
+
+Write-Host 'Installation complete.'
+& $psql --version
+Write-Host "Install prefix: $Prefix"
+Write-Host "Data directory: $DataDir"
+Write-Host "Service name: $ServiceName"
+Write-Host "Port: $Port"
+$service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($service) {
+    Write-Host "Service status: $($service.Status)"
+} else {
+    Write-Warning "Service $ServiceName was not found. Check the name selected by the installer."
+}
+, '$1$1')
+    return '"' + $escaped + '"'
+}
+
 $installerArgs = @(
     '--mode', 'unattended',
     '--prefix', $Prefix,
     '--datadir', $DataDir,
     '--superpassword', $SuperPassword,
-    '--serverport', $Port,
+    '--serverport', "$Port",
     '--servicename', $ServiceName,
     '--disable-components', 'stackbuilder'
 )
+$argumentLine = ($installerArgs | ForEach-Object {
+    ConvertTo-WindowsCommandLineArgument -Value "$_"
+}) -join ' '
 
 Write-Host "Installing PostgreSQL 17 to $Prefix ..."
-$process = Start-Process -FilePath $Installer -ArgumentList $installerArgs -Wait -PassThru
+$process = Start-Process -FilePath $Installer -ArgumentList $argumentLine -Wait -PassThru
 if ($process.ExitCode -ne 0) {
     Write-Error "Installer exited with code $($process.ExitCode)."
     exit $process.ExitCode
