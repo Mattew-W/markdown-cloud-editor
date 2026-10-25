@@ -1,0 +1,22 @@
+[package]
+name = "markdown-cloud-editor"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+# 修正版依赖说明（对齐主仓库约定，2026-10-24 M1 审计修正）：
+# - thiserror 由 1 升到 2，与主仓库一致（原 v1/v2 分叉）；
+# - serde_json 仅演示入口打印响应 JSON 用；
+# - tokio 由 dev-dependencies 移入 dependencies，供 main 演示驱动 async 服务；
+# - 未引入任何数据库 / HTTP / 认证依赖（本 crate 只到 service 层为止）。
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[dev-dependencies]
+mockall = "0.12"
