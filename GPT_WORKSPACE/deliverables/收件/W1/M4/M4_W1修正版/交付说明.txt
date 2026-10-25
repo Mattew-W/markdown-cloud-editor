@@ -1,0 +1,87 @@
+M4 W1 交付说明（修正版）
+========================================
+
+一、交付内容
+----------------------------------------
+
+本目录为 M4 W1 交付物的**审计修正版**（2026-10-24，由 M1 在审计基础上修正），
+与原件的对应关系：
+
+  M4_W1修正版/
+  ├── 检查记录.md                 五道检查的真实运行记录（本人重跑核对后随交付提交）
+  ├── 交付说明.txt                本文件
+  └── markdown-cloud-editor/      修正版 Cargo 项目
+      ├── Cargo.toml              清单与锁文件配置（thiserror 已对齐主仓库 v2）
+      ├── Cargo.lock              实际生成的锁文件
+      ├── src/
+      │   ├── lib.rs              crate 文档 + 主 crate 级 lint 头
+      │   ├── main.rs             演示入口（内存仓储跑通 19 个场景）
+      │   ├── dto/                请求/响应 DTO 与输入校验（规则集中为顶层常量）
+      │   └── services/           业务服务层 + 仓储抽象 + 25 个单元测试
+      └── .gitignore              （不含 .cargo/、不含 target/、不含 .git/）
+
+原交付（微信文件夹 markdown-cloud-editor/）已原样归档于
+  GPT_WORKSPACE/deliverables/收件/W1/M4/extracted/markdown-cloud-editor/
+二者互不影响；审计结论见同目录 M4_W1审计报告_20261024.md。
+
+二、运行方法
+----------------------------------------
+
+  # 演示：内存仓储跑通全部校验/服务分支，失败以非零码退出
+  cargo run --locked
+
+  # 单元测试（25 项）
+  cargo test --locked
+
+  # 格式 / lint / 文档门禁（与 CI 同命令）
+  cargo fmt --check
+  cargo clippy --locked --all-targets -- -D warnings
+  $env:RUSTDOCFLAGS = "-D warnings"; cargo doc --locked --no-deps   # PowerShell
+
+要求：rustc/cargo 1.99+（edition 2024），Windows / Linux / macOS 均可。
+
+三、依赖说明（6 个常规依赖 + 1 个开发依赖）
+----------------------------------------
+
+  serde 1 / serde_json 1    序列化；serde_json 仅演示入口打印响应 JSON
+  thiserror 2               错误派生（由原 v1 升为 v2，与主仓库一致）
+  uuid 1                    UUID 主键（serde + v4）
+  chrono 0.4                时间类型；响应时间戳经 format_timestamp() 输出秒级 RFC 3339
+  tokio 1                   async 运行时（由 dev-dependencies 移入，供 main 演示驱动服务）
+  mockall 0.12（dev）       单元测试的仓储 mock
+
+未引入数据库 / HTTP / 认证依赖：本 crate 到 service 层为止，仓储由
+DocumentRepository trait 抽象，生产实现（SQLx）由 M1 注入。
+
+四、修正版相对原交付改了什么（摘要）
+----------------------------------------
+
+  1. 正文超限由 400 改为 413（API.md §4），新增 From<ValidationError> 翻译；
+  2. update 路径持久化 trim 后标题，与 create 路径一致；
+  3. 新增 DocumentServiceError::code()，产出 API.md §4.1 稳定错误码字面量；
+  4. 响应类型 DocumentUpdateConfirmResponse 更名为 UpdateDocumentResponse；
+  5. 响应时间戳由 DateTime<Utc> 改为秒级 RFC 3339 字符串；
+  6. 补齐 DeleteDocumentQuery（API.md §3.6 查询参数）；
+  7. 新增 RepositoryError，仓储错误与服务错误分层；
+  8. main.rs 由 Hello-world 桩改为 19 场景演示；
+  9. 规则集中为顶层常量；lib.rs 内置主 crate lint 头，补齐全部公开项文档；
+ 10. 移除 .cargo/config.toml（个人 rsproxy 镜像配置）。
+
+五、已知限制
+----------------------------------------
+
+  1. 本 crate 是**审计修正版**，用于对齐冻结契约与工程门禁，不直接合入主仓库；
+     生产 document 层以主仓库 src/services/document_service.rs 为准。
+  2. 版本冲突时需二次读库区分 404/409，存在 TOCTOU 窗口（影响有限，
+     与主仓库现状同级）；彻底方案是仓储层直接回传 server_version，属 W2 演进项。
+  3. 演示用内存仓储仅覆盖单 owner 场景，未做并发压力验证。
+
+六、待 M4 本人填写（返工交付时必填）
+----------------------------------------
+
+  姓  名：______________
+  学  号：______________
+  使用的 AI 工具及版本：______________
+  练习本体（validation_demo）是否已按任务书补做：是 / 否
+  检查记录.md 是否已本人重跑核对：是 / 否
+  日  期：______________
