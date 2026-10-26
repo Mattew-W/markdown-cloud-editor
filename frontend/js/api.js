@@ -302,9 +302,15 @@ export async function apiFetch(
     }
 
     if (errorBody && typeof errorBody.error === 'object' && errorBody.error !== null) {
-      const { code, message, details, request_id: requestId } = errorBody.error;
+      const { code, message, details } = errorBody.error;
       const ErrorClass = ERROR_CODE_MAP[code] ?? ApiError;
-      const options = { status: response.status, code: code ?? null, details: details ?? null, requestId: requestId ?? null };
+      // request_id 以响应体为准；缺失时回落到 X-Request-Id 响应头
+      // （契约 API.md §4.1：request_id 关联 X-Request-Id 头用于排障）
+      const requestId =
+        errorBody.error.request_id ??
+        response.headers.get('x-request-id') ??
+        null;
+      const options = { status: response.status, code: code ?? null, details: details ?? null, requestId };
 
       if (ErrorClass === VersionConflictError) {
         const serverVersion = details?.server_version;

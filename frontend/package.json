@@ -1,0 +1,16 @@
+{
+  "name": "markdown-cloud-editor-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "云同步 Markdown 编辑器前端静态资源包",
+  "scripts": {
+    "test": "node --test \"js/tests/*.test.js\"",
+    "test:api": "node --test js/tests/api.test.js",
+    "test:drafts": "node --test js/tests/drafts.test.js",
+    "test:log": "node run_tests.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

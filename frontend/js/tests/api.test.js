@@ -104,6 +104,20 @@ describe('apiFetch — 成功路径与 204', () => {
     const mockFetch = async () => new Response('not-json', { status: 200 });
     await assert.rejects(() => apiFetch('/documents', { fetchImpl: mockFetch }), ProtocolError);
   });
+
+  test('其他 2xx（202/206 等）按契约解析 JSON——API.md §1：除 204 外成功响应均为 JSON', async () => {
+    for (const status of [200, 201, 202, 206]) {
+      const mockFetch = async () => new Response(JSON.stringify({ status }), { status });
+      const payload = await apiFetch('/documents', { fetchImpl: mockFetch });
+      assert.deepEqual(payload, { status }, `${status} 应返回解析后的 JSON`);
+    }
+  });
+
+  test('2xx 状态码不为 200/201/204 时不套用 204 的 null 返回', async () => {
+    const mockFetch = async () => new Response(JSON.stringify({ ok: 1 }), { status: 202 });
+    const payload = await apiFetch('/documents', { fetchImpl: mockFetch });
+    assert.notEqual(payload, null, '只有 204 返回 null');
+  });
 });
 
 // ---------- 请求构造 ----------
@@ -283,6 +297,56 @@ describe('apiFetch — 错误码映射', () => {
     assert.equal(error.constructor.name, 'ApiError');
     assert.equal(error.status, 400);
     assert.equal(error.code, 'SOMETHING_NEW');
+  });
+
+  test('request_id 缺失时回落到 X-Request-Id 响应头', async () => {
+    const mockFetch = async () =>
+      new Response(JSON.stringify({ error: { code: 'BAD_REQUEST', message: 'x' } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json', 'x-request-id': 'hdr-req-9' },
+      });
+    const error = await apiFetch('/documents', { fetchImpl: mockFetch }).catch((e) => e);
+    assert.equal(error.requestId, 'hdr-req-9');
+  });
+
+  test('响应体与响应头都无 request_id 时为 null', async () => {
+    const mockFetch = async () =>
+      new Response(JSON.stringify({ error: { code: 'BAD_REQUEST', message: 'x' } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      });
+    const error = await apiFetch('/documents', { fetchImpl: mockFetch }).catch((e) => e);
+    assert.equal(error.requestId, null);
+  });
+
+  test('error 字段不是对象时不崩溃，归基类 ApiError 并保留 status', async () => {
+    for (const body of [{ error: '字符串' }, { error: 123 }, { error: [] }, { message: 'x' }]) {
+      const mockFetch = async () =>
+        new Response(JSON.stringify(body), {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        });
+      const error = await apiFetch('/documents', { fetchImpl: mockFetch }).catch((e) => e);
+      assert.ok(error instanceof ApiError, `应归基类: ${JSON.stringify(body)}`);
+      assert.equal(error.status, 500);
+    }
+  });
+
+  test('error 字段缺失时归基类 ApiError（不因结构不全而崩溃）', async () => {
+    const mockFetch = async () =>
+      new Response(JSON.stringify({ unexpected: true }), {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+      });
+    const error = await apiFetch('/documents', { fetchImpl: mockFetch }).catch((e) => e);
+    assert.ok(error instanceof ApiError);
+    assert.equal(error.status, 500);
+  });
+
+  test('details 缺失时为 null（非 VERSION_CONFLICT 场景）', async () => {
+    const mockFetch = async () => makeErrorResponse(404, { code: 'NOT_FOUND', message: 'x' });
+    const error = await apiFetch('/documents', { fetchImpl: mockFetch }).catch((e) => e);
+    assert.equal(error.details, null);
   });
 });
 
