@@ -1,0 +1,8 @@
+{
+    "name": "m6‑w2‑apiclient",
+    "version": "0.0.1",
+    "type": "module",
+    "scripts": {
+        "test": "node --test tests/api.test.js"
+    }
+}

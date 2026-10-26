@@ -1,0 +1,41 @@
+M6 W2 交付说明
+作业：独立API客户端网络库
+实现阶段：阶段01 + 阶段02 + 阶段03，完成完整回归，按阶段4交付。
+
+交付文件清单：
+- package.json
+- README.md
+- 阶段记录.md
+- 检查记录.md
+- 交付说明.txt
+- js/api.js
+- tests/api.test.js
+
+排除文件：
+不提交 node_modules、.git目录，无真实账号凭据。
+
+核心实现要点简答：
+1、204为什么不读JSON：
+HTTP 204 No‑Content 规范不允许返回响应体。调用 Response.json() 会抛出异常；业务约定直接返回 null，规避解析报错。
+
+2、409两种错误如何传递serverVersion：
+409分为USERNAME_TAKEN（ConflictError）与VERSION_CONFLICT（VersionConflictError）。
+VERSION_CONFLICT时读取details.server_version存入异常实例serverVersion属性，上层捕获VersionConflictError即可读取；server_version缺失或者不是正整数抛出ProtocolError。
+
+3、超时为什么不能断言服务器一定没有保存数据：
+客户端10秒超时只是客户端放弃等待响应。HTTP请求已经发送到网络，服务端有可能已经完成业务写入，只是响应报文没能返回客户端。客户端无法获知服务端实际执行状态。
+
+测试执行命令：
+node --test tests/api.test.js
+
+✔ tests\api.test.js (55.6341ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.2289
+
+测试特性：全部mock，不访问真实后端；超时使用注入定时器，不会阻塞等待10秒。
