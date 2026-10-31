@@ -1,0 +1,63 @@
+M2 W2 运行日志
+==================================================
+日期：2026-10-31 17:55:08 +08:00
+系统：Microsoft Windows NT 10.0.26200.0
+Shell：Windows PowerShell 5.1.26100.9711
+工作目录：M2_W2
+
+状态：SQL 未执行（环境不可用）
+说明：本文件是真实的环境检查日志，不是数据库执行日志。schema.sql、
+      run_checks.sql、fixtures.sql、verify_constraints.sql 均未在数据库
+      中运行。
+
+一、数据库客户端检查
+--------------------------------------------------
+[命令] Get-Command psql -ErrorAction SilentlyContinue
+[结果] NOT FOUND
+
+[命令] Get-Command pg_ctl -ErrorAction SilentlyContinue
+[结果] NOT FOUND
+
+[命令] Get-Command docker -ErrorAction SilentlyContinue
+[结果] NOT FOUND
+
+[命令] cmd /c where psql
+[结果] INFO: Could not find files for the given pattern(s).
+[退出码] 1
+
+二、数据库服务与安装目录检查
+--------------------------------------------------
+[命令] Get-Service -Name 'postgresql*' -ErrorAction SilentlyContinue
+[结果] NONE（无匹配服务）
+
+[命令] Test-Path 'C:\Program Files\PostgreSQL'
+[结果] False
+
+[命令] Test-Path 'C:\Program Files (x86)\PostgreSQL'
+[结果] False
+
+[命令] Get-ChildItem 'C:\Program Files' -Directory | Where-Object Name -match 'Postgre|Docker'
+[结果] 无匹配目录
+
+三、WSL 检查
+--------------------------------------------------
+[命令] wsl -l -q
+[结果] 系统提示未安装 Linux 发行版，无法用 WSL 提供 PostgreSQL。
+
+四、SQL 执行记录
+--------------------------------------------------
+[未执行] psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f schema.sql
+[原因] 无 psql、无 PostgreSQL 服务、无 Docker。
+[未执行] psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f run_checks.sql
+[原因] 同上。
+[未执行] 第二次 run_checks.sql（重复性检查）
+[原因] 同上。
+[未执行] SELECT count(*) FROM users / documents（残留检查）
+[原因] 同上。
+
+五、结论
+--------------------------------------------------
+- 本机没有可用于连接练习库的 PostgreSQL 环境。
+- 没有产生任何 SQLSTATE 实测结果；所有预期 SQLSTATE 仍只是静态预期。
+- 没有生成数据库连接串、账号、密码或 .env 文件。
+- 复测步骤见 README.md；不得把本日志当作“验证通过”或“可重复”的证据。

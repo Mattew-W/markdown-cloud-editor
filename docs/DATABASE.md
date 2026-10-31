@@ -104,9 +104,13 @@ DB 的 CHECK 只是兜底，不要因为它存在就以为应用层可以省略�
 | 文件 | 用途 |
 |---|---|
 | `0001_init.sql` | 建表、约束、索引 |
-| `verify_constraints.sql` | 约束实测脚本（10 个用例） |
+| `checks/fixtures.sql` | 断言式验证的固定夹具（3 用户 + 6 文档） |
+| `checks/verify_constraints.sql` | 断言式约束验证（11 个用例，带 SQLSTATE 断言） |
+| `checks/run_checks.sql` | 验证入口：夹具与检查同事务，结束回滚、零残留 |
 | `cleanup_test_data.sql` | 清 `public` schema 测试数据 |
 | `cleanup_test_schemas.sql` | 清隔离测试 schema（`t_%` 前缀） |
+| `verify_constraints_legacy_manual.sql` | 旧观察式脚本，**已归档**，不再作为验收依据 |
+| `verify_whitespace.sql` | 标题 Unicode 空白边界专项检查 |
 
 ---
 
@@ -149,7 +153,53 @@ schema 内用 `include_str!("../migrations/0001_init.sql")` 复用**真实迁移
 ## 7. 实测记录（真实 PostgreSQL 17.11）
 
 环境：`D:\PostgreSQL\17`，库 `mce_test`，客户端 `psql`。
-执行命令：`psql -U postgres -d mce_test -f migrations/verify_constraints.sql`
+
+> **2026-10-31 更新**：原第 7 节记录的观察式脚本（`verify_constraints.sql`，靠人工看
+> ERROR 输出判断）已归档为 `verify_constraints_legacy_manual.sql`。现行验收依据是
+> **断言式**脚本 `migrations/checks/`，见下节 7.1。
+
+### 7.1 断言式约束验证（现行依据，2026-10-31 实测）
+
+执行命令：
+
+```powershell
+psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f migrations/0001_init.sql
+psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f migrations/checks/run_checks.sql
+```
+
+与旧脚本的本质差别：每条负例放在**嵌套 BEGIN/EXCEPTION 子事务**中，捕获
+`RETURNED_SQLSTATE` 并与预期**逐项比较**；错误码不同或根本没报错，都显式
+`RAISE EXCEPTION` 使整轮失败。不使用 `WHEN OTHERS THEN NULL` 吞错。
+
+实测结果（PostgreSQL 17.11，11/11 PASS，`ALL CONSTRAINT CHECKS PASSED`）：
+
+| # | 用例 | 期望 SQLSTATE | 实测 |
+|---|---|---|---|
+| 1 | 重复 username | `23505` | ✅ |
+| 2 | owner 为不存在但合法的 UUID | `23503` | ✅ |
+| 3 | `version = 0` | `23514` | ✅ |
+| 4 | `version = -1` | `23514` | ✅ |
+| 5 | 正文 262145 字节 | `23514` | ✅ |
+| 6 | 空标题 | `23514` | ✅ |
+| 7 | 纯普通空格标题 | `23514` | ✅ |
+| 8 | 全角空格标题 U+3000 | `23514` | ✅ |
+| 9 | 标题 256 字符 | `22001`（VARCHAR 长度错误，非 CHECK） | ✅ |
+| 10 | 合法 255 字符标题 | 成功 INSERT | ✅ |
+| 11 | 合法 262144 字节正文 | 成功 INSERT | ✅ |
+
+补充核实：
+- **可重复**：连续执行两遍均成功；业务表零残留（`users=0, documents=0`）。
+- **证伪能力**：8 个变异体（逐条移除约束 / 篡改预期错误码 / 放宽 VARCHAR）全部被检出并判失败，
+  证明脚本不是"永远报 PASS"的空壳。
+- **事务隔离**：单条负例失败被嵌套子事务捕获后，外层事务仍可继续执行后续检查与写入。
+- 多字节正文按 `octet_length` 计（`repeat('中',87381)||'a'` = 262144 字节），
+  未用字符数替代字节数。
+
+---
+
+### 7.2 旧观察式脚本的历史记录（2026-10-21，已归档）
+
+原执行命令：`psql -U postgres -d mce_test -f migrations/verify_constraints.sql`
 
 | # | 用例 | 期望 | 实测 |
 |---|---|---|---|
@@ -168,7 +218,6 @@ schema 内用 `include_str!("../migrations/0001_init.sql")` 复用**真实迁移
 - 索引定义 `(owner_id, updated_at DESC, id DESC)` 与规范一致；
 - `pg_trigger` 中两表非内部触发器数量 = **0**；
 - 集成测试 9 个用例（8 认证 + 1 健康检查）在真实库上全部通过。
-
 ---
 
 ## 8. 本地环境

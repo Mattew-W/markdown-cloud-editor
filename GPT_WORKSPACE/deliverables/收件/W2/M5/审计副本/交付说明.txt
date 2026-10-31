@@ -1,0 +1,51 @@
+M5 W2 交付说明
+================
+
+姓名/学号：刘欣怡 / 24406040124
+交付日期：2026-10-28
+周次：W2（模块化 + 安全 Markdown 预览）
+
+一、完成项
+----------
+1. index.html —— 页面结构（含内联 SVG favicon），按序引入本地托管 vendor 脚本与 js/demo.js 模块；预览区"安全预览已启用"徽标
+2. css/style.css —— 三栏网格布局与响应式断点、渲染后 Markdown 排版样式（标题/列表/代码/引用/表格等）
+3. js/editor.js —— 可复用模块 createEditor({titleInput, contentInput, previewElement, parseMarkdown, sanitizeHtml}) → {getValue, setValue, onInput(cb)→unsubscribe, destroy}；不导入演示数据、不绑定不存在的 DOM、不触碰 token/同步/API/localStorage
+4. js/demo.js —— 控制层：演示文档/列表渲染/切换确认/未保存保护/保存占位（"演示模式，尚未接入保存"）；注入真实 parseMarkdown 与 sanitizeHtml
+5. vendor/ —— 本地托管的真实库：marked 12.0.2（MIT）、DOMPurify 3.3.3（Apache-2.0 OR MPL-2.0），均为官方浏览器构建，不依赖 CDN；VERSIONS.md 记录版本、来源与许可
+6. tests/ —— editor.events.test.js（6 个事件逻辑测试）+ editor.security.test.js（8 个真实净化安全测试，jsdom+真实 DOMPurify+真实 marked），合计 14 个，`npm test` 全部通过
+7. package.json / package-lock.json —— 测试依赖锁定（jsdom 等 devDependencies；node_modules 不随包交付）
+8. 检查记录.md —— 浏览器实测逐项记录（Edge 156.0.4314.42，64 位；页面/中文输入/窄屏/恶意 HTML 净化/控制台/断网渲染/保存占位均实测通过）
+9. screenshots/ —— 9 张真实浏览器截图（页面、宽度适配、控制台、恶意 HTML 演示、断网状态、Edge 版本、保存按钮）
+10. 阶段记录.md —— 阶段 1/2/3 全程记录（命令、实际输出、结果）
+
+二、打开/运行方法
+------------------
+必须用本地 HTTP 服务，不能双击 file://（页面使用 ES Module）。
+1. 打开命令行，进入本目录（M5_W2）
+2. 运行：python -m http.server 8080 --bind 127.0.0.1
+3. 浏览器打开：http://127.0.0.1:8080/
+（运行测试：在本目录执行 npm test）
+
+三、没完成的地方（如实说明）
+------------------
+- 云端保存 / 登录 / API / 自动保存：本周不接入。保存按钮为演示占位，仅提示"演示模式，尚未接入保存"，本地预览不等于云端保存
+- lint/format 工具链：任务标注的选做项，未引入
+- 除 Edge 外的浏览器（Chrome/Firefox）未逐一实测，仅保证标准 ES Module + vendor 全局脚本兼容性
+
+四、安全红线落实情况
+------------------
+- 正文预览唯一路径：marked.parse → DOMPurify.sanitize → innerHTML
+- 标题与文档列表：仅 textContent，不经过 HTML 渲染
+- 实测证据：输入 <img src=x onerror=alert(1)>、javascript: 链接、<script> 均被净化，无弹窗、不执行（见检查记录.md 第 4 节与 07_恶意HTML演示.png）
+
+五、应打包的文件
+----------------
+M5_W2 文件夹内以下内容（不含 node_modules）：
+- index.html
+- css/style.css
+- js/editor.js、js/demo.js
+- vendor/marked/marked.min.js、vendor/dompurify/purify.min.js、vendor/README.txt、vendor/VERSIONS.md
+- tests/editor.events.test.js、tests/editor.security.test.js
+- package.json、package-lock.json
+- 阶段记录.md、检查记录.md、交付说明.txt
+- screenshots/（9 张真实截图）

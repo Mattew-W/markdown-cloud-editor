@@ -77,7 +77,20 @@ pub fn issue_token(
     ttl_secs: u64,
 ) -> Result<(String, DateTime<Utc>), TokenError> {
     let now = Utc::now();
-    let expires_at = now + Duration::seconds(i64::try_from(ttl_secs).unwrap_or(i64::MAX));
+
+    // TTL 过大不能 panic。三道闸依次拦：
+    //   1. u64 → i64 转换失败：超出 i64 秒范围；
+    //   2. `Duration::try_seconds` 返回 None：超出 chrono TimeDelta 表示范围
+    //      （注意 `Duration::seconds` 在这里就会 panic，必须用 try_* 版本）；
+    //   3. `checked_add_signed` 返回 None：加上 TTL 后超出 Utc 可表示的时间范围。
+    // 三者都归为 `TokenError::Invalid`，接口与错误类型均不变。
+    let ttl_secs = i64::try_from(ttl_secs)
+        .map_err(|_| TokenError::Invalid("TTL 超出可表示范围".to_owned()))?;
+    let ttl = Duration::try_seconds(ttl_secs)
+        .ok_or_else(|| TokenError::Invalid("TTL 过大，超出时间间隔表示范围".to_owned()))?;
+    let expires_at = now
+        .checked_add_signed(ttl)
+        .ok_or_else(|| TokenError::Invalid("TTL 过大，过期时间溢出".to_owned()))?;
 
     let claims = Claims {
         sub: user_id.to_owned(),
@@ -127,6 +140,12 @@ pub fn decode_token(token: &str, secret: &str) -> Result<Claims, TokenError> {
         // 该文本只进日志与本层错误，不返回给客户端（路由统一映射为通用 401 文案）。
         other => TokenError::Invalid(format!("{other:?}")),
     })?;
+
+    // `sub` 承载用户 UUID，不允许为空串：空值会让"验签通过但查不到用户"。
+    // 最小校验，不做 UUID 格式解析（解析交给调用方，如 extractor.rs）。
+    if data.claims.sub.is_empty() {
+        return Err(TokenError::Invalid("sub 不能为空".to_owned()));
+    }
 
     Ok(data.claims)
 }
@@ -270,5 +289,111 @@ mod tests {
             decode_token(&forged, SECRET).is_err(),
             "alg=none 的伪造 token 必须被拒绝"
         );
+    }
+
+    // ---- 边界测试（M3 W2 回归新增）----
+    //
+    // 用测试辅助结构构造「签名正确但字段缺失」的 token：
+    // 不能靠改坏 base64 去赌签名变化，那样测到的是签名不匹配而非字段缺失。
+
+    /// 与 `Claims` 同构但缺 `aud` 的载荷。
+    #[derive(Serialize)]
+    struct ClaimsNoAud {
+        sub: String,
+        username: String,
+        iat: i64,
+        exp: i64,
+        iss: String,
+    }
+
+    /// 与 `Claims` 同构但缺 `exp` 的载荷。
+    #[derive(Serialize)]
+    struct ClaimsNoExp {
+        sub: String,
+        username: String,
+        iat: i64,
+        iss: String,
+        aud: String,
+    }
+
+    /// 用正确密钥为任意可序列化载荷签发 token。
+    fn sign<T: Serialize>(payload: &T) -> String {
+        encode(
+            &Header::new(Algorithm::HS256),
+            payload,
+            &EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .expect("构造不应失败")
+    }
+
+    #[test]
+    fn 正确签名但aud错误被拒绝() {
+        let now = Utc::now();
+        let claims = Claims {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: now.timestamp(),
+            exp: (now + Duration::hours(1)).timestamp(),
+            iss: ISSUER.to_owned(),
+            aud: "wrong-audience".to_owned(),
+        };
+        let token = sign(&claims);
+        let err = decode_token(&token, SECRET).expect_err("错误 aud 必须被拒绝");
+        assert!(matches!(err, TokenError::Invalid(_)), "实际：{err:?}");
+    }
+
+    #[test]
+    fn 签名正确但缺aud被拒绝() {
+        let now = Utc::now();
+        let payload = ClaimsNoAud {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: now.timestamp(),
+            exp: (now + Duration::hours(1)).timestamp(),
+            iss: ISSUER.to_owned(),
+        };
+        let token = sign(&payload);
+        assert!(
+            decode_token(&token, SECRET).is_err(),
+            "缺少 aud 的 token 必须被拒绝"
+        );
+    }
+
+    #[test]
+    fn 签名正确但缺exp被拒绝() {
+        let now = Utc::now();
+        let payload = ClaimsNoExp {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: now.timestamp(),
+            iss: ISSUER.to_owned(),
+            aud: AUDIENCE.to_owned(),
+        };
+        let token = sign(&payload);
+        assert!(
+            decode_token(&token, SECRET).is_err(),
+            "缺少 exp 的 token 必须被拒绝"
+        );
+    }
+
+    #[test]
+    fn 空sub被拒绝() {
+        let (token, _) = issue_token("", "alice", SECRET, 3600).expect("签发不应失败");
+        let err = decode_token(&token, SECRET).expect_err("空 sub 必须被拒绝");
+        assert!(matches!(err, TokenError::Invalid(_)), "实际：{err:?}");
+    }
+
+    #[test]
+    fn ttl取u64max返回错误不panic() {
+        let res = issue_token("u1", "alice", SECRET, u64::MAX);
+        assert!(res.is_err(), "u64::MAX TTL 必须返回错误而非 panic");
+    }
+
+    #[test]
+    fn ttl取i64max返回错误不panic() {
+        // u64 → i64 转换能成功，但秒数已超出 chrono TimeDelta 的表示范围，
+        // `Duration::seconds` 在此处就会 panic，必须走 `try_seconds`。
+        let res = issue_token("u1", "alice", SECRET, i64::MAX as u64);
+        assert!(res.is_err(), "i64::MAX TTL 必须返回错误而非 panic");
     }
 }
