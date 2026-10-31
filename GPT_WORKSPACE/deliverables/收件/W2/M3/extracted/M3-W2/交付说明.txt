@@ -1,0 +1,41 @@
+M3 W2 交付说明
+任务：现有 JWT 模块回归（jwt_review）
+工作目录：C:\Users\Lenovo\Desktop\M3-W2
+
+一、交付内容
+- jwt_review/            Rust 库工程（jwt_review）
+  - src/token.rs          JWT 签发与验签源码（原模块工作副本 + 阶段2 最小修复 + 新增测试）
+  - src/lib.rs            仅 pub mod token
+  - Cargo.toml            最小依赖清单
+  - Cargo.lock            cargo 实际生成
+  - .cargo/config.toml    rsproxy 稀疏镜像（本机访问官方索引超时的环境配置）
+- 阶段记录.md             阶段1/2/3 过程记录（修改文件、实际命令/结果、未通过项、下一步）
+- 检查记录.md             fmt/test/clippy 逐项检查结果与覆盖范围
+- 变更说明.md             原模块已有 / 本次新增测试 / 发现缺陷与候选修复 / 概念自述
+- 交付说明.txt            本文件
+- logs_phase1_baseline.txt            阶段1 基线测试真实输出
+- logs_phase2_newtests_pre-fix.txt    阶段2 新增测试、修复前的输出（含2项失败证据）
+- logs_phase2_newtests_post-fix.txt   阶段2 修复后的输出（13/13 通过）
+- logs_phase3_regression.txt          阶段3 fmt/test/clippy 完整输出与退出码
+
+二、验证结论
+- cargo fmt --check        通过（首次因 import 排序失败，已 cargo fmt 并复查 clean）
+- cargo test               通过：13 passed; 0 failed（含原模块8例 + 新增5例）
+- cargo clippy --all-targets -- -D warnings  通过：exit 0，无 warning
+- 未生成任何生产密钥；测试仅用虚构常量；无 target/.git/真实凭据（target 在本次交付目录已由构建产生，如打包请排除）
+
+三、发现并修复的缺陷（最小修复，接口不变）
+1. issue_token 在 ttl 过大（u64::MAX）时 panic → 改为 checked 转换/加法，返回 TokenError::Invalid。
+2. decode_token 接受空 sub → 增加 sub 非空最小校验，返回 TokenError::Invalid。
+（证据见检查记录.md 与 pre-fix/post-fix 两份日志。）
+
+四、环境说明
+- 本机 cargo 1.99.0 / rustc 1.99.0。
+- 访问 crates.io 官方索引持续超时，故项目内使用 rsproxy 稀疏镜像（.cargo/config.toml）保证依赖可下载。若评审环境无需镜像，可删除该文件不影响源码与 lock。
+
+五、待本人补充（未填虚构示例）
+- 个人姓名 / 学号。
+- 最终打包 zip：M3_W2_姓名_实际日期_v2.zip（因姓名未提供尚未生成）。
+
+六、打开方式
+- 直接以 Rust 工程打开 jwt_review，或命令行：cd 到 jwt_review 后运行 cargo test。

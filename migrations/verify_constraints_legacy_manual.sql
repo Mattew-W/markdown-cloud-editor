@@ -1,4 +1,25 @@
--- migrations 验证脚本
+-- 【已归档 · 请改用 migrations/checks/】
+--
+-- 本脚本原名 migrations/verify_constraints.sql，2026-10-31 重命名为
+-- verify_constraints_legacy_manual.sql，以消除与 migrations/checks/verify_constraints.sql
+-- 的同名歧义（两者语义完全不同，不是同一文件的两个副本）。
+--
+-- 本脚本：观察式（人工看 ERROR 输出判断对错），无 SQLSTATE 断言、无事务隔离、
+--         依赖外部 cleanup_test_data.sql 清理残留。
+-- 新脚本：migrations/checks/ 断言式（捕获 RETURNED_SQLSTATE 并与预期逐项比较，
+--         错误码不符即整轮失败），11 个用例全部带断言，夹具与检查同事务回滚、零残留。
+--
+-- **新脚本已实测通过**（2026-10-31，PostgreSQL 17.11，11/11 PASS，两遍可重复、零残留；
+--  8 个变异体全部被检出）。
+--
+-- 用法（新脚本）：
+--   psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f migrations/0001_init.sql
+--   psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f migrations/checks/run_checks.sql
+--
+-- 本文件保留仅供历史对照，不再作为验收依据。
+-- ============================================================
+
+-- migrations 验证脚本（旧版，观察式）
 -- 逐条核对 0001_init.sql 的约束是否真的在 PostgreSQL 17 上生效。
 -- 规范 §12：最终验收必须连接真实数据库，故约束必须实测而非只看 SQL。
 

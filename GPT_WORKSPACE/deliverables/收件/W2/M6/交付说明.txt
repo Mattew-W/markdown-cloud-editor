@@ -1,0 +1,155 @@
+M6 W2 交付说明
+作业：独立 API 客户端网络库（零 DOM）
+
+═══════════════════════════════════════════════════════════════
+一、交付文件清单
+═══════════════════════════════════════════════════════════════
+
+已合入主项目：
+  frontend/js/api.js              HTTP API 客户端实现
+  frontend/js/tests/api.test.js   Node 内置测试（50 项）
+  frontend/js/README.md           接口说明（导出清单、行为约束、用法）
+  frontend/js/evidence_probe.mjs  逐例取证脚本（生成检查记录的数据来源）
+  frontend/package.json           前端工具链与 npm 脚本
+  frontend/run_tests.mjs          生成真实 TAP 日志
+  frontend/test-output.log        真实执行日志（TAP 原文）
+
+随交记录：
+  GPT_WORKSPACE/deliverables/收件/W2/M6/检查记录.md
+  GPT_WORKSPACE/deliverables/收件/W2/M6/交付说明.txt   （本文件）
+
+未交（按要求排除）：node_modules、.git、真实 token、无。
+
+═══════════════════════════════════════════════════════════════
+二、完成项
+═══════════════════════════════════════════════════════════════
+
+1. 零 DOM 网络库。不读写任何 DOM、不绑定事件、不访问存储。
+2. apiFetch(path, {method, token, body, fetchImpl, timers}) 单一请求函数，
+   未扩散成许多随意命名的方法。
+3. BASE_URL='/api/v1'、TIMEOUT_MS=10000 两个常量。
+4. path 校验：必须单个 / 开头；拒绝完整外域 URL、// 协议相对、
+   重复 /api/v1 前缀。非法路径在构造请求前就抛错，不发请求。
+5. Bearer 只放 Authorization 头，不进 URL；body 非 undefined 才
+   JSON 序列化并设 Content-Type；GET 不接受 body。
+6. 成功 200/201 返回 JSON；204 直接返回 null 且绝不调用 response.json()。
+7. 九类 error.code → 专用错误类，按 code 分支不按 message；
+   两种 409（USERNAME_TAKEN / VERSION_CONFLICT）不混淆。
+8. VersionConflictError 携带 serverVersion；缺失或非法抛
+   ProtocolError，不编造版本号。
+9. RateLimitedError 保留原始 Retry-After 头字符串，解析与退避交上层。
+10. 非 2xx 先查 Content-Type，支持 application/json 与
+    application/*+json（忽略参数与大小写）；非 JSON 不硬解析；
+    声明 JSON 但损坏抛 ProtocolError；未知 code 归基类并保留 status。
+11. 10 秒 AbortController 超时，计时范围覆盖 fetch 与响应体读取；
+    成功/业务失败/解析失败/网络失败四条路径都清理定时器。
+12. 网络层失败归 NetworkError；超时归 TimeoutError。
+13. 不自动重试：任何失败都只发一次请求。
+14. 错误文案一律中文，不透出 JS 异常的 e.message。
+15. Node 内置测试 50 项，另有前端合计 97 项全部通过。
+
+═══════════════════════════════════════════════════════════════
+三、怎么运行
+═══════════════════════════════════════════════════════════════
+
+跑测试：
+  cd frontend
+  npm test              全部前端测试（97 项）
+  npm run test:api      仅 api.js（50 项）
+  npm run test:log      生成 test-output.log（TAP 原文）
+
+在页面中使用（浏览器）：
+  <script type="module">
+    import { apiFetch, AuthError } from './js/api.js';
+    try {
+      const doc = await apiFetch(`/documents/${id}`, { token });
+    } catch (err) {
+      if (err instanceof AuthError) { /* 跳登录 */ }
+    }
+  </script>
+
+本模块是纯逻辑网络层，不需要启动服务器。接真实后端后由页面同源调用。
+
+═══════════════════════════════════════════════════════════════
+四、没完成的地方
+═══════════════════════════════════════════════════════════════
+
+1. 与真实 Rust / Actix-web 后端联调——/documents 路由尚未实现
+   （API.md §8 标注阶段 4，依赖 M4 的 document service）。本轮只验证了
+   真实浏览器中的 URL 解析行为，未验证真实 HTTP 往返。
+2. 真实浏览器中的完整 API 往返——同上，无可用后端。
+3. ESLint / Prettier 静态检查——本机未安装且无网络，未执行。
+4. Safari / Firefox / Edge / 微信 WebView 兼容性——本机仅装 Chromium。
+5. 端到端浏览器测试（Playwright）——需真实后端。
+
+完整的未执行项清单见《检查记录.md》第 4 节（8 项，逐条列明原因与影响）。
+
+═══════════════════════════════════════════════════════════════
+五、三个问题的解释
+═══════════════════════════════════════════════════════════════
+
+【问题 1】204 为什么不读 JSON？
+
+HTTP 规范规定 204 No Content 响应不得包含响应体。调用
+Response.json() 会尝试解析一个空体，抛出 SyntaxError，把一次正常的
+"删除成功"变成一个看似严重的解析错误。所以必须先判
+response.status === 204 直接返回 null。
+
+测试验证方式不是看代码，而是让 mock 的 json() 一旦被调用就抛错，
+再断言它没被调用（检查记录 A3 项：response.json() 是否被调用 = false）。
+
+【问题 2】409 如何把 serverVersion 交给上层？
+
+两种 409 必须分开：
+  USERNAME_TAKEN   → ConflictError          （注册页提示换名）
+  VERSION_CONFLICT → VersionConflictError   （进 conflict 状态）
+
+VERSION_CONFLICT 时，从错误体的 details.server_version 读出服务端当前
+版本，存进异常实例的 serverVersion 属性。上层捕获后直接用
+err.serverVersion 就能拿到，不必再解析原始响应。
+
+关键点：server_version 缺失或不是正整数时，抛 ProtocolError 而不是
+补一个默认值。编造版本号会让上层基于假数据做冲突合并，比直接失败更危险。
+检查记录 F1–F6 用六种非法值验证了这条。
+
+【问题 3】超时为什么不能断言服务器一定没保存？
+
+客户端 10 秒超时，只表示客户端放弃了等待响应，不表示服务端没执行。
+HTTP 请求已经发到网络上，服务端可能已经完成了数据库写入，只是响应
+报文没能返回客户端——网络中断、连接被重置、中间代理超时都可能造成这种
+"结果未知"状态。
+
+若此时客户端直接判定"没保存"并重发 PUT，会用同一个 expected_version
+再写一次。乐观锁会把它变成 VERSION_CONFLICT，用户看到冲突，但内容其实
+早就保存好了。
+
+正确做法是按 SYNC.md §6 的"结果未知"流程：读取云端记录核对——
+  1. 云端内容与发送快照完全相同 → 确认已持久化，接收读到的版本；
+  2. 云端版本仍等于发送快照的 base_version → 用原 expected_version 重试；
+  3. 云端版本已变且内容不同 → 进 conflict，禁止自动覆盖；
+  4. 读取返回 404 → 保留本地内容，提示云端文档已不可用。
+
+TimeoutError 与 NetworkError 都属于这一类，不能当作"未保存"处理。
+
+═══════════════════════════════════════════════════════════════
+六、使用了哪些 AI
+═══════════════════════════════════════════════════════════════
+
+本版由 M1（WorkBuddy）在审核原交件后代为修复与补全：
+  - 修复原交件的四个致命缺陷（详见《M6_W2_审核记录.md》）
+  - 按冻结契约 INTERFACES.md §C8 重写并补齐接口说明
+  - 补 50 项测试与 8 项未执行清单
+  - 产出《检查记录.md》，所有输出为实际执行结果
+
+原 W2 交件由组员使用豆包完成，其设计（接口签名、九类错误码映射、
+204 处理、超时控制）经核对完全符合冻结契约，已全部保留。
+
+═══════════════════════════════════════════════════════════════
+七、复跑验证
+═══════════════════════════════════════════════════════════════
+
+命令：cd frontend && npm test
+预期：# tests 97 / # pass 97 / # fail 0，退出码 0
+
+原始 TAP 日志见 frontend/test-output.log（由 npm run test:log 生成，
+含 Node 版本、平台、完整 TAP 原文与退出码）。

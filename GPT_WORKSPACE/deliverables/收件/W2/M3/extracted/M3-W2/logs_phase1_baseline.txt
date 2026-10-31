@@ -1,0 +1,28 @@
+﻿cargo :    Compiling jwt_review v0.1.0 (C:\Users\Lenovo\Desktop\M3-W2\jwt_review)
+所在位置 行:1 字符: 58
++ ... n "C:\Users\Lenovo\Desktop\M3-W2\jwt_review"; cargo test 2>&1 | Tee-O ...
++                                                   ~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling jw...-W2\jwt_review):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.71s
+     Running unittests src\lib.rs (target\debug\deps\jwt_review-89054dac18ab5312.exe)
+
+running 8 tests
+test token::tests::算法降级攻击被阻断 ... ok
+test token::tests::篡改载荷后验签失败 ... ok
+test token::tests::篡改签名段失败 ... ok
+test token::tests::不同签发者的token被拒绝 ... ok
+test token::tests::签发后可验回原载荷 ... ok
+test token::tests::过期token被识别为过期 ... ok
+test token::tests::错误密钥无法验签 ... ok
+test token::tests::非jwt字符串被拒绝 ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests jwt_review
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

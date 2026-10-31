@@ -1,0 +1,46 @@
+﻿cargo :    Compiling jwt_review v0.1.0 (C:\Users\Lenovo\Desktop\M3-W2\jwt_review)
+所在位置 行:1 字符: 58
++ ... n "C:\Users\Lenovo\Desktop\M3-W2\jwt_review"; cargo test 2>&1 | Tee-O ...
++                                                   ~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling jw...-W2\jwt_review):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.69s
+     Running unittests src\lib.rs (target\debug\deps\jwt_review-89054dac18ab5312.exe)
+
+running 13 tests
+test token::tests::ttl取u64max返回错误不panic ... FAILED
+test token::tests::篡改签名段失败 ... ok
+test token::tests::篡改载荷后验签失败 ... ok
+test token::tests::签名正确但缺aud被拒绝 ... ok
+test token::tests::过期token被识别为过期 ... ok
+test token::tests::空sub被拒绝 ... FAILED
+test token::tests::签名正确但缺exp被拒绝 ... ok
+test token::tests::正确签名但aud错误被拒绝 ... ok
+test token::tests::签发后可验回原载荷 ... ok
+test token::tests::不同签发者的token被拒绝 ... ok
+test token::tests::算法降级攻击被阻断 ... ok
+test token::tests::错误密钥无法验签 ... ok
+test token::tests::非jwt字符串被拒绝 ... ok
+
+failures:
+
+---- token::tests::ttl取u64max返回错误不panic stdout ----
+
+thread 'token::tests::ttl取u64max返回错误不panic' (46168) panicked at C:\Users\Lenovo\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\chrono-0.4.45\src\lib.rs:717:17:
+TimeDelta::seconds out of bounds
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- token::tests::空sub被拒绝 stdout ----
+
+thread 'token::tests::空sub被拒绝' (46196) panicked at src\token.rs:365:48:
+空 sub 必须被拒绝: Claims { sub: "", username: "alice", iat: 1793266750, exp: 1793270350, iss: "markdown-cloud-editor", aud: "markdown-cloud-editor-web" }
+
+
+failures:
+    token::tests::ttl取u64max返回错误不panic
+    token::tests::空sub被拒绝
+
+test result: FAILED. 11 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--lib`

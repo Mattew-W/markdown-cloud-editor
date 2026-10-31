@@ -1,6 +1,6 @@
 //! Markdown 云同步编辑器 —— 后端 crate。
 //!
-//! # 分层
+//! # 分层（规范 §07 六层解耦）
 //!
 //! | 模块 | 职责 |
 //! |---|---|
@@ -8,8 +8,11 @@
 //! | [`error`] | 统一错误类型与 HTTP 响应映射 |
 //! | [`middleware`] | 请求追踪 ID |
 //! | [`state`] | 共享状态（数据库连接池） |
-//! | [`auth`] | 密码哈希（**M3**）与 JWT 签发 |
-//! | [`repositories`] | 数据访问，路由不得直接写 SQL |
+//! | [`auth`] | 密码哈希（**M3**）、JWT 签发与身份提取器 |
+//! | [`dto`] | 数据传输对象（请求入参校验与响应模型） |
+//! | [`models`] | 数据库行实体映射（`sqlx::FromRow`） |
+//! | [`services`] | 业务规则编排与输入校验（**M4 对接**） |
+//! | [`repositories`] | 数据访问，路由与服务层不得直接写 SQL |
 //! | [`routes`] | HTTP 路由 |
 //!
 //! # 设计约束
@@ -32,10 +35,13 @@
 
 pub mod auth;
 pub mod config;
+pub mod dto;
 pub mod error;
 pub mod middleware;
+pub mod models;
 pub mod repositories;
 pub mod routes;
+pub mod services;
 pub mod state;
 
 pub use config::{Config, ConfigError};

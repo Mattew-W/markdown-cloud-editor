@@ -58,3 +58,7 @@ GPT_WORKSPACE/deliverables/**/*.docx
 Thumbs.db
 .vscode/
 .idea/
+
+# 前端测试运行日志：由 `npm run test:log` 生成，是可复现产物，不入库。
+# 真实 TAP 输出需要留证时，用检查记录.md 摘录关键行即可。
+frontend/test-output.log

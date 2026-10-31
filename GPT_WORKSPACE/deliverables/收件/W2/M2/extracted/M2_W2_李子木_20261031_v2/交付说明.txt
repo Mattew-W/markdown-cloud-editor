@@ -1,0 +1,111 @@
+M2_W2 交付说明
+==================================================
+
+姓名/学号：李子木 D10774023
+日期：2026-10-31
+任务：M2 W2｜数据库夹具与约束验证
+项目：Markdown 云同步编辑器（六人课程项目）
+
+一、完成项
+1. schema.sql
+   - M1 随包 materials/M2/0001_init.sql 的逐字节副本。
+   - SHA256 与源文件一致，未修改附件 schema。
+
+2. fixtures.sql
+   - 三个固定 UUID 用户：alice、bob、charlie。
+   - 六篇固定 UUID 文档：中文、英文、255 字符标题边界、空正文、普通多段 Markdown、262144 字节正文边界。
+   - 用户先插入，文档后插入；每篇文档有明确 owner_id 外键；version 均为 1；时间使用明确 UTC。
+   - 预留不存在 owner 的合法 UUID：99999999-9999-4999-8999-999999999999。
+   - password_hash 为明确标注的数据库测试假值（DB_TEST_ONLY_FAKE_HASH_*_NOT_ARGON2），不是有效 Argon2 哈希，不参与登录。
+
+3. verify_constraints.sql
+   - 9 个负例：重复 username、不存在 owner、version 0/-1、正文 262145 字节、空标题、普通空格标题、全角空格标题、标题 256 字符。
+   - 2 个合法边界：255 字符标题、262144 字节正文，均要求真正 INSERT 成功。
+   - 每条检查放在嵌套 BEGIN/EXCEPTION 子事务中，捕获 SQLSTATE 并与预期比较；未报错或错误码不同都会显式 RAISE EXCEPTION，不使用 WHEN OTHERS THEN NULL 吞错。
+
+4. run_checks.sql
+   - 入口设置 ON_ERROR_STOP。
+   - 使用相对路径 \ir 加载 fixtures.sql、verify_constraints.sql。
+   - 在同一 BEGIN/ROLLBACK 中运行夹具和检查；成功时回滚夹具。
+   - schema.sql 自带事务，首次单独执行，不放入该事务。
+
+5. README.md
+   - 给出首次建表、执行检查和残留核对的命令；练习库名使用占位符 <练习库名>。
+   - 说明如何检查残留、如何判断可重复。
+
+6. 检查记录.md
+   - 记录真实环境检查命令与结果、静态检查结果、11 个用例的动作/预期/实际/断言。
+   - 所有运行项如实写“未运行”，没有写成通过。
+
+7. 运行日志.txt
+   - 真实环境检查日志；明确标注 SQL 未执行。
+
+8. 交付说明.txt（本文件）
+
+二、运行方法（本次未执行）
+1. 准备 PostgreSQL 17 系列的独立空练习库，编码为 UTF8。
+2. 首次建表：
+   psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f schema.sql
+3. 执行检查：
+   psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f run_checks.sql
+4. 连续运行两遍，并检查 users/documents 残留为 0，才能写“可重复、无残留”。
+
+说明：本机没有 psql、PostgreSQL 服务或 Docker；以上命令均未执行。
+<练习库名> 是占位符，不是已执行的数据库名。
+
+三、没完成的地方
+- schema.sql 未在真实 PostgreSQL 中执行。
+- 11 个约束用例均未运行，没有实际 SQLSTATE。
+- run_checks.sql 未运行，不能声称“可重复”。
+- 没有做残留计数，不能声称“无残留”。
+- 没有真实 SQL 终端输出；运行日志.txt 只是环境检查日志。
+- 以上未执行项已在检查记录.md 中逐项标明，不能当作通过。
+
+四、使用的 AI
+- Claude Code（Cherry Studio 智能体，模型标识 deepseek-flash[1m]）。
+- 用途：根据包内 schema、阶段提示词和 W1 交件生成 SQL 夹具、验证脚本、README 和文档草稿。
+- AI 生成内容需本人复核；AI 生成不等于数据库验证通过。
+
+五、打包清单
+M2_W2_李子木_20261031_v2.zip
+  schema.sql
+  fixtures.sql
+  verify_constraints.sql
+  run_checks.sql
+  README.md
+  检查记录.md
+  交付说明.txt
+  运行日志.txt
+
+不包含：.env、密钥、账号密码、真实 token、target、node_modules、.git。
+
+六、讲解要点
+1. 为什么不能用 99999 测 UUID 外键？
+   owner_id 是 UUID；99999 是整数，PostgreSQL 会先尝试把它转成 UUID，
+   在类型输入阶段就会报 22P02（invalid_text_representation），根本走不到外键检查。
+   这样测到的是“类型转换失败”，不是“外键拒绝不存在的用户”。
+   必须使用语法合法但未插入 users 的 UUID，例如
+   99999999-9999-4999-8999-999999999999，才会得到 23503。
+
+2. 为什么“屏幕报错”不等于测试通过？
+   屏幕上有红色错误，只能说明某条语句失败了；失败原因可能是语法错误、
+   类型错误、表不存在、事务已中止，或者别的约束先触发。要证明是指定约束
+   生效，必须捕获 RETURNED_SQLSTATE，并与预期值（23505、23503、23514、
+   22001）逐项比较；错误码不同或根本没有报错，都必须让整轮失败。
+   只看“出现了报错”会把错误的失败当成通过。
+
+3. 怎么证明一次失败不会让后续检查都因事务中止而报错？
+   每个负例 INSERT 都放在自己的嵌套 BEGIN/EXCEPTION 子事务中。异常被该层
+   捕获后，只回滚这个子事务，外层事务仍然可用，脚本可以继续执行下一条检查。
+   如果某条检查意外成功或错误码不符，就在异常处理块之外显式 RAISE EXCEPTION，
+   让整轮失败，避免“声明失败”的异常被同一个 WHEN OTHERS 误判为通过。
+   完整跑完并输出 11 个 PASS 和 ALL CONSTRAINT CHECKS PASSED，才说明外层事务
+   没有被前面的失败中止。若失败未被捕获，ON_ERROR_STOP 会立即停止，连接关闭时
+   未提交事务回滚，也不会带着已中止的事务继续跑后续检查。
+   注意：以上是脚本设计说明；本次没有数据库环境，尚未实测。
+
+七、交付前自检
+- 姓名/学号已填写，无空缺标记。
+- 所有未运行项均已明确标注，未把静态检查写成数据库验证通过。
+- schema.sql 与 M1 附件哈希一致。
+- 压缩包只包含上述八个文件，不包含密钥或 .env。

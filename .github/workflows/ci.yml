@@ -115,6 +115,33 @@ jobs:
             -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;" \
             -c "SELECT indexname FROM pg_indexes WHERE tablename='documents';"
 
+      # 断言式约束验证 + 零残留核对（必检）。
+      # 与上面的「核对迁移结果」不同：那个只看表和索引建出来了，这个逐条断言
+      # **约束真的按预期触发**——捕获 RETURNED_SQLSTATE 并与预期比较，
+      # 错误码不同或根本没报错都使整轮失败。
+      #
+      # 规范 §12：约束必须实测而非只看 SQL 定义。
+      # 脚本在单一 BEGIN/ROLLBACK 中运行夹具与检查，结束回滚，不污染业务表。
+      # 本地已于 PostgreSQL 17.11 实测：11/11 PASS，两遍可重复，零残留。
+      #
+      # 残留核对采用**跨检查取样**：BEFORE 取自检查执行之前，AFTER 取自之后。
+      # 若把 BEFORE 放在检查之后，两次取样必然相等，检测形同虚设。
+      # 用前后对比而非绝对值 0：public schema 将来若有种子数据，绝对 0 会误报失败。
+      - name: 断言式约束验证与零残留核对
+        env:
+          PGPASSWORD: ci_test_password
+        run: |
+          COUNT_SQL="SELECT (SELECT count(*) FROM users) || ',' || (SELECT count(*) FROM documents);"
+          BEFORE=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 -c "$COUNT_SQL")
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -f migrations/checks/run_checks.sql
+          AFTER=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 -c "$COUNT_SQL")
+          echo "before=${BEFORE} after=${AFTER}"
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "::error::约束验证脚本留下残留数据：before=${BEFORE} after=${AFTER}"
+            exit 1
+          fi
+
       # ---------- 必检 1/4：格式 ----------
       - name: cargo fmt --check
         run: cargo fmt --check

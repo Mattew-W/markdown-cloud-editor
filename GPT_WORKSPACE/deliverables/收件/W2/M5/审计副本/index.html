@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown 云同步编辑器（W2 演示）</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232F6FED'/%3E%3Ctext x='8' y='12' font-size='10' fill='white' text-anchor='middle' font-family='sans-serif'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">Markdown 云同步编辑器</h1>
+    <div class="header-actions">
+      <button id="saveBtn" class="btn btn-primary" type="button">保存</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <aside class="doc-list" aria-label="文档列表">
+      <h2 class="doc-list-title">我的文档</h2>
+      <ul id="docList" class="doc-list-items"></ul>
+    </aside>
+
+    <section class="editor-pane">
+      <input
+        type="text"
+        id="docTitle"
+        class="doc-title-input"
+        placeholder="文档标题"
+        maxlength="255"
+        autocomplete="off"
+        aria-label="文档标题"
+      >
+      <textarea
+        id="docContent"
+        class="doc-content"
+        placeholder="在这里输入 Markdown 正文……"
+        spellcheck="false"
+      ></textarea>
+    </section>
+
+    <section class="preview-pane">
+      <div class="preview-header">
+        <span class="preview-label">预览</span>
+        <span class="preview-badge">安全预览已启用</span>
+      </div>
+      <div id="preview" class="preview-content"></div>
+    </section>
+  </main>
+
+  <footer class="status-bar">
+    <span id="statusText" class="status-text" aria-live="polite">就绪</span>
+    <span id="docInfo" class="doc-info"></span>
+  </footer>
+
+  <script src="vendor/marked/marked.min.js"></script>
+  <script src="vendor/dompurify/purify.min.js"></script>
+  <script type="module" src="js/demo.js"></script>
+</body>
+</html>
