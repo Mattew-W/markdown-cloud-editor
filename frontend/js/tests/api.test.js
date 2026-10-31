@@ -422,6 +422,28 @@ describe('apiFetch — 超时与网络故障', () => {
     assert.equal(aborted, true, '10000 毫秒必须中断');
   });
 
+  for (const status of [200, 400]) {
+    test(`${status} 响应体读取超时抛 TimeoutError`, async () => {
+      const { state, timers } = makeTimers();
+      let bodyStarted;
+      const started = new Promise((resolve) => { bodyStarted = resolve; });
+      const fetchImpl = async (_url, { signal }) => ({
+        ok: status === 200,
+        status,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('abort', 'AbortError')));
+          bodyStarted();
+        }),
+      });
+      const request = apiFetch('/documents', { fetchImpl, timers });
+      await started;
+      state.trigger();
+      await assert.rejects(request, TimeoutError);
+      assert.equal(state.clearCalls.length, 1);
+    });
+  }
+
   test('网络拒绝抛 NetworkError', async () => {
     const mockFetch = async () => {
       throw new Error('socket drop');

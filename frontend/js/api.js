@@ -281,7 +281,8 @@ export async function apiFetch(
       let payload;
       try {
         payload = await response.json();
-      } catch {
+      } catch (error) {
+        if (error?.name === 'AbortError') throw error;
         // 声明成功但内容不是合法 JSON，不伪装成成功
         throw new ProtocolError('响应内容不是合法 JSON', { status: response.status });
       }
@@ -295,7 +296,8 @@ export async function apiFetch(
     if (isJsonContentType(contentType)) {
       try {
         errorBody = await response.json();
-      } catch {
+      } catch (error) {
+        if (error?.name === 'AbortError') throw error;
         // 声明 JSON 但解析损坏
         throw new ProtocolError('错误响应内容不是合法 JSON', { status: response.status });
       }
