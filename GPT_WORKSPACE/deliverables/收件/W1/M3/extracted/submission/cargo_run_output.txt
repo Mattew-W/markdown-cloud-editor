@@ -1,0 +1,47 @@
+cargo :     Updating crates.io index
+所在位置 行:1 字符: 86
++ ... hats\2026-10-20\new-chat\M3_W1\password_demo"; cargo run 2>&1 | Tee-O ...
++                                                    ~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Updating crates.io index:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+     Locking 3 packages to highest Rust 1.99.0 compatible versions
+      Adding cfg-if v1.0.5
+      Adding getrandom v0.2.17
+      Adding wasi v0.11.1+wasi-snapshot-preview1
+ Downloading crates ...
+  Downloaded cfg-if v1.0.5
+  Downloaded getrandom v0.2.17
+   Compiling cfg-if v1.0.5
+   Compiling getrandom v0.2.17
+   Compiling rand_core v0.6.4
+   Compiling password-hash v0.5.0
+   Compiling argon2 v0.5.3
+   Compiling password_demo v0.1.0 ([本机路径已脱敏])
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.68s
+     Running `target\debug\password_demo.exe`
+========== M3_W1 密码校验演示 ==========
+
+【案例 1】正确密码 vs 正确哈希
+  生成的哈希字符串：
+  $argon2id$v=19$m=19456,t=2,p=1$SA73F58taIsf/BCB7xRpZg$IV351lruSy3BuFkNC2PJk3e7Xcjne/OYjbwW8h0HXaE
+  结果：✅ 正确密码验证通过
+
+【案例 2】错误密码 vs 正确哈希
+  结果：✅ 错误密码被正确拒绝
+
+【案例 3】正确密码 vs 损坏的哈希字符串
+  损坏的哈希：$argon2id$v=19$m=19456,t=2,p=1$很坏的盐$完全不对的哈希
+  结果：✅ 解析失败，返回可读错误：salt invalid: contains invalid character: '很'
+
+【案例 4】同一密码哈希两次（随机盐演示）
+  第一次哈希：$argon2id$v=19$m=19456,t=2,p=1$Tboo/ufEnNzi0cerSaplyw$uJKtgVmrjjYcxbNhNmI4Hf79of1wAKRSLreldxmuH7M
+  第二次哈希：$argon2id$v=19$m=19456,t=2,p=1$Z7W2BHJEAjQrtKxiMblB2Q$4bs1aX+yC38nqCrhFXl/io2Q/181SbOV6xOAXecrCU8
+  两个字符串是否相等？false
+  用原密码验证第一次哈希：✅ 通过
+  用原密码验证第二次哈希：✅ 通过
+
+========== 演示结束 ==========
+说明：随机盐让每个用户的哈希字符串都不一样，
+即使两个用户密码相同，存进数据库的字符串也不同；
+验证时盐会从哈希字符串里一起解析出来，所以不需要单独存盐。

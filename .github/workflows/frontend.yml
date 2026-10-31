@@ -19,16 +19,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Run frontend draft unit tests when present
+      - name: Run frontend draft unit tests
+        run: node --test frontend/js/tests/drafts.test.js
+      - name: Verify drafts module has no DOM operations
         shell: bash
         run: |
-          module_dir="GPT_WORKSPACE/deliverables/收件/W1/M6/正式模块草案_frontend"
-          test_file="$module_dir/tests/unit/drafts.test.js"
-          if [ -f "$test_file" ]; then
-            node --test "$test_file"
-          elif [ -d "$module_dir" ]; then
-            echo "::error::Frontend module exists but its required unit test file is missing."
+          if grep -nE 'document\.|getElementById|addEventListener' frontend/js/drafts.js; then
+            echo "::error::frontend/js/drafts.js contains DOM operations"
             exit 1
-          else
-            echo "Frontend draft module has not landed yet; tests are not applicable."
           fi

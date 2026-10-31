@@ -1,46 +1,55 @@
-# 阶段 1 四条必检命令的真实执行脚本
-#
-# 关键：必须在管道**之前**捕获 $LASTEXITCODE。
-# `cargo build 2>&1 | Out-File log` 之后再读 $LASTEXITCODE 拿到的是
-# Out-File 的退出码（恒为 0），会把失败误报成通过。
-#
-# 用法：pwsh -NoProfile -File scripts/check.ps1
-
 $ErrorActionPreference = 'Continue'
+$repoRoot = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath $repoRoot
 
-# MinGW-w64（WinLibs）——提供 as.exe / dlltool.exe，rustup 自带的 rust-mingw 组件缺 as.exe
-$winlibs = 'C:\Users\huang\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.MCF.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin'
-if (Test-Path $winlibs) { $env:PATH = "$winlibs;$env:PATH" }
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+    Write-Error 'Cargo was not found. Install the Rust toolchain and ensure cargo is on PATH.'
+    exit 127
+}
 
-Set-Location 'D:\WORKbuddy1\RUST'
+if ($env:MCE_MINGW_BIN) {
+    if (-not (Test-Path -LiteralPath $env:MCE_MINGW_BIN -PathType Container)) {
+        Write-Error "MCE_MINGW_BIN does not exist: $env:MCE_MINGW_BIN"
+        exit 2
+    }
+    $env:PATH = "$($env:MCE_MINGW_BIN)$([IO.Path]::PathSeparator)$env:PATH"
+}
+
+if ($env:MCE_CARGO_TARGET_DIR) {
+    $env:CARGO_TARGET_DIR = $env:MCE_CARGO_TARGET_DIR
+}
+
 $results = @()
 
 function Invoke-Check {
-    param([string]$Name, [scriptblock]$Action)
+    param(
+        [string]$Name,
+        [scriptblock]$Action
+    )
+
     Write-Host "--- $Name ---"
-    $log = "D:\rustbuild\check-$($Name -replace '[^a-zA-Z0-9]','_').log"
-    & $Action 2>&1 | Out-File -LiteralPath $log -Encoding utf8
+    & $Action
     $code = $LASTEXITCODE
-    Write-Host "  退出码: $code   日志: $log"
-    $script:results += [pscustomobject]@{ 检查项 = $Name; 退出码 = $code }
-    return $code
+    Write-Host "  exit code: $code"
+    $script:results += [pscustomobject]@{ Check = $Name; ExitCode = $code }
 }
 
-Invoke-Check 'cargo-fmt'      { cargo fmt --check } | Out-Null
-Invoke-Check 'cargo-clippy'   { cargo clippy --locked --all-targets -- -D warnings } | Out-Null
-Invoke-Check 'cargo-test'     { cargo test --locked --all-targets } | Out-Null
+Invoke-Check 'cargo fmt --check' { cargo fmt --check }
+Invoke-Check 'cargo clippy' { cargo clippy --locked --all-targets -- -D warnings }
+Invoke-Check 'cargo test' { cargo test --locked --all-targets }
 
+$previousRustdocFlags = $env:RUSTDOCFLAGS
 $env:RUSTDOCFLAGS = '-D warnings'
-Invoke-Check 'cargo-doc'      { cargo doc --locked --no-deps } | Out-Null
+Invoke-Check 'cargo doc' { cargo doc --locked --no-deps }
+$env:RUSTDOCFLAGS = $previousRustdocFlags
 
 Write-Host ''
-Write-Host '================ 汇总 ================'
 $results | Format-Table -AutoSize
-$failed = @($results | Where-Object { $_.退出码 -ne 0 })
+$failed = @($results | Where-Object { $_.ExitCode -ne 0 })
 if ($failed.Count -eq 0) {
-    Write-Host '全部通过'
+    Write-Host 'All checks passed.'
     exit 0
-} else {
-    Write-Host "失败 $($failed.Count) 项"
-    exit 1
 }
+
+Write-Host "$($failed.Count) check(s) failed."
+exit 1

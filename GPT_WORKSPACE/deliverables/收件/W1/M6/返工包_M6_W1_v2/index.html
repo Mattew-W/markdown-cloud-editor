@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>M6 W1 本地草稿演示（返工版 v2）</title>
+</head>
+<body>
+    <div>
+        <p>⚠️只保存在当前浏览器，不是云同步，换设备/无痕模式草稿会丢失</p>
+        <textarea id="editor" rows="12" cols="80" placeholder="在这里输入Markdown内容"></textarea>
+        <div style="margin:8px 0;">
+            <!-- F10 修复：显式声明 type="button"，避免嵌入 form 时触发意外提交 -->
+            <button type="button" id="btnSave">保存到本机</button>
+            <button type="button" id="btnLoad">读取本机草稿</button>
+            <button type="button" id="btnClear">清除本机草稿</button>
+        </div>
+        <div id="msg" role="status" aria-live="polite"></div>
+    </div>
+    <!--
+      运行方式：必须用本地静态服务器打开，不能双击 file:// 地址。
+
+      原因：drafts.js 补了 export（F7 修复），必须是 ES Module，
+      浏览器在 file:// 协议下会以 CORS 策略拦截 module 脚本。
+      已实测确认，见 ../verify_file_protocol.js 的输出。
+
+        python -m http.server 9000 --bind 127.0.0.1
+        浏览器访问 http://127.0.0.1:9000/index.html
+
+      你的原检查记录里本来就用的这个地址，方式没有变化。
+    -->
+    <script type="module" src="./drafts.js"></script>
+</body>
+</html>
