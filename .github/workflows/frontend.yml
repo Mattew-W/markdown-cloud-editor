@@ -19,8 +19,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Run frontend draft unit tests
-        run: node --test frontend/js/tests/drafts.test.js
+      - name: Run frontend unit tests
+        run: npm test
+        working-directory: frontend
       - name: Verify drafts module has no DOM operations
         shell: bash
         run: |
