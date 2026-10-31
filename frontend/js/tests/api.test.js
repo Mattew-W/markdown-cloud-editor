@@ -444,6 +444,18 @@ describe('apiFetch — 超时与网络故障', () => {
     });
   }
 
+  for (const status of [200, 400]) {
+    test(`${status} 响应体传输中断抛 NetworkError`, async () => {
+      const fetchImpl = async () => ({
+        ok: status === 200,
+        status,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => { throw new TypeError('connection terminated'); },
+      });
+      await assert.rejects(() => apiFetch('/documents', { fetchImpl }), NetworkError);
+    });
+  }
+
   test('网络拒绝抛 NetworkError', async () => {
     const mockFetch = async () => {
       throw new Error('socket drop');
