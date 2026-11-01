@@ -1,0 +1,63 @@
+﻿cargo :     Checking document_validation v0.1.0 (C:\Users\123\Doubao\chats\2026-11-01\new-chat\M4_W2\M4_W2\document_val
+idation)
+所在位置 行:1 字符: 121
++ ... Path $base; cargo clippy --locked --all-targets -- -D warnings 2>&1 | ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking do...ent_validation):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error: useless use of `vec!`
+   --> src\main.rs:82:17
+    |
+ 82 |       let cases = vec![
+    |  _________________^
+ 83 | |         // 1 正常标题
+ 84 | |         title_case("正常标题（含首尾空白）", "  中文标题  ", Ok("中文标题")),
+...   |
+116 | |         ),
+117 | |     ];
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#useless_vec
+    = note: `-D clippy::useless-vec` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::useless_vec)]`
+help: you can use an array directly
+    |
+ 82 ~     let cases = [title_case("正常标题（含首尾空白）", "  中文标题  ", Ok("中文标题")),
+ 83 ~         // 2 创建省略标题
+ 84 ~         create_case("创建省略标题 None", None, Ok(DEFAULT_TITLE)),
+ 85 ~         // 3 显式空串拒绝
+ 86 +         create_case(
+ 87 ~             "创建显式空串 Some(\"\")",
+ 88 +             Some(""),
+ 89 +             Err(ValidationError::EmptyTitle),
+ 90 +         ),
+ 91 ~         // 4 255 字符通过
+ 92 ~         title_case("255 个汉字标题", &title_255, Ok(&title_255)),
+ 93 ~         // 5 256 字符拒绝
+ 94 +         title_case(
+ 95 ~             "256 个汉字标题",
+ 96 +             &title_256,
+ 97 +             Err(ValidationError::TitleTooLong {
+ 98 +                 actual: 256,
+ 99 +                 max: 255,
+100 +             }),
+101 +         ),
+102 ~         // 6 空正文通过
+103 ~         content_case("空正文", "", Ok(())),
+104 ~         // 7 262144 字节通过
+105 ~         content_case("262144 字节正文", &body_262144, Ok(())),
+106 ~         // 8 262145 字节拒绝
+107 +         content_case(
+108 ~             "262145 字节正文",
+109 +             &body_262145,
+110 +             Err(ValidationError::ContentTooLarge {
+111 +                 actual: 262145,
+112 +                 max: 262144,
+113 +             }),
+114 ~         )];
+    |
+
+error: could not compile `document_validation` (bin "document_validation" test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `document_validation` (bin "document_validation") due to 1 previous error

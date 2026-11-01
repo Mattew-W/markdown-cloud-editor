@@ -1,0 +1,55 @@
+M4 W2 交付说明
+====================================
+
+【本人信息】（请在提交前由本人填写，当前为占位，未使用示例冒充真实值）
+姓名：王海鑫
+学号：24406040107
+班级/组别：__________（如需要，待本人填写）
+
+【使用的 AI 工具】
+实际 AI 名称：豆包（Doubao）AI 助手
+可见形态：豆包办公（Windows 桌面端）对话助手
+说明：按任务要求不贴模型品牌/内部版本标签；本机工具链为 rustc 1.99.0、cargo 1.99.0。
+
+【交付物清单】（本目录 document_validation/）
+- Cargo.toml：crate 配置，无第三方依赖，仅 Rust 标准库。
+- Cargo.lock：实际生成的锁文件，仅含本 crate。
+- src/lib.rs：正式输入规则实现，含常量、ValidatedDocument、ValidationError 及四个公有函数
+  validate_title / normalize_create_title / validate_content / validate_update。
+- src/main.rs：8 项规则演示，真实比较预期与实际，任一失败则非零退出。
+- tests/validation.rs：T1～T12 共 12 个带真实断言的集成测试。
+- 规则对照.md：W1→W2 规则逐项对照及本周不做的功能。
+- 阶段记录.md：三个阶段的文件、真实命令/输出、失败与修复、下一步。
+- 检查记录.md：T1～T12 输入/预期/实际/断言与日志的关联，AI 与本人操作区分。
+- logs/：8 份正式命令日志 + 2 份过程失败留档（6-test-fail-01.log、8-clippy-fail-01.log）。
+
+【已完成项】
+1. 按正式规则实现：MAX_TITLE_CHARS=255（先 trim 再 chars().count）、
+   MAX_BODY_BYTES=262144（正文不 trim，按 len 计字节）、DEFAULT_TITLE="未命名文档"。
+2. 创建语义：仅 title=None 才默认；Some("")、普通/全角空白均返回 EmptyTitle。
+   更新语义：标题必填，空白返回 EmptyTitle；正常标题返回 trim 后的值，正文原样返回。
+3. T1～T12 全部通过：cargo test --locked 退出码 0，12 passed / 0 failed。
+4. 演示 8/8 PASS：cargo run --locked 退出码 0。
+5. cargo fmt --check 通过；cargo clippy --locked --all-targets -- -D warnings 通过。
+6. 过程中两次失败（一次编译类型错误、一次 clippy useless_vec）均修复并保留原始日志。
+
+【未完成项 / 边界说明】
+1. 本人姓名、学号待本人填写。
+2. 阶段 3 要求本人口头解释的两个问题，须由本人实际回答，AI 未代答、未写“已掌握”：
+   (1) W1 空白标题默认，为什么 W2 显式空白却拒绝？
+   (2) 为什么要返回 trim 后的标题而非只检查它？
+3. 本库为理解与验证用候选模块，未与主项目集成，未引入主项目 AppError，
+   未改主项目签名；是否复用、如何适配由 M1 决定。
+4. 按总览要求 M5 才需要真实截图，本周不涉及。
+5. 未实现 HTTP、数据库、DTO/Service/Repository、登录、分页、权限、版本、并发、CRUD。
+
+【运行方法】（在本目录下，需安装 Rust 工具链）
+1. 格式化检查：cargo fmt --check
+2. 运行全部测试：cargo test --locked
+3. 运行演示：cargo run --locked
+4. 静态检查：cargo clippy --locked --all-targets -- -D warnings
+预期：以上命令退出码均为 0；测试 12 passed；演示输出“结果: 8/8 PASS”。
+
+【打包约定】
+压缩包命名：M4_W2_姓名_实际日期.zip；已排除 target、.git、机器私有 .cargo、.env，
+不夹带 node_modules 或真实凭据。

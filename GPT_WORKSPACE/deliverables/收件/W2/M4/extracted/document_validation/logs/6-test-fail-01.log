@@ -1,0 +1,40 @@
+﻿cargo :    Compiling document_validation v0.1.0 (C:\Users\123\Doubao\chats\2026-11-01\new-chat\M4_W2\M4_W2\document_val
+idation)
+所在位置 行:1 字符: 121
++ ... n"; Set-Location -LiteralPath $base; cargo test --locked 2>&1 | Tee-O ...
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling do...ent_validation):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error[E0308]: mismatched types
+  --> src\main.rs:32:36
+   |
+32 |         pass: result.as_deref() == want,
+   |                                    ^^^^ expected `Result<&str, &ValidationError>`, found `Result<&str, ValidationE
+rror>`
+   |
+   = note: expected enum `Result<&_, &ValidationError>`
+              found enum `Result<&_, ValidationError>`
+help: try using `.as_deref()` to convert `Result<&str, ValidationError>` to `Result<&str, &ValidationError>`
+   |
+32 |         pass: result.as_deref() == want.as_deref(),
+   |                                        +++++++++++
+
+error[E0308]: mismatched types
+  --> src\main.rs:52:36
+   |
+52 |         pass: result.as_deref() == want,
+   |                                    ^^^^ expected `Result<&str, &ValidationError>`, found `Result<&str, ValidationE
+rror>`
+   |
+   = note: expected enum `Result<&_, &ValidationError>`
+              found enum `Result<&_, ValidationError>`
+help: try using `.as_deref()` to convert `Result<&str, ValidationError>` to `Result<&str, &ValidationError>`
+   |
+52 |         pass: result.as_deref() == want.as_deref(),
+   |                                        +++++++++++
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `document_validation` (bin "document_validation") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `document_validation` (bin "document_validation" test) due to 2 previous errors
