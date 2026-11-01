@@ -1,0 +1,9 @@
+﻿cargo :     Checking document_validation v0.1.0 (C:\Users\123\Doubao\chats\2026-11-01\new-chat\M4_W2\M4_W2\document_val
+idation)
+所在位置 行:1 字符: 251
++ ... TEXITCODE"; cargo clippy --locked --all-targets -- -D warnings 2>&1 | ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking do...ent_validation):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.68s

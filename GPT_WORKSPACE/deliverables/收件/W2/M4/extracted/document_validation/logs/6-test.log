@@ -1,0 +1,45 @@
+﻿cargo :    Compiling document_validation v0.1.0 (C:\Users\123\Doubao\chats\2026-11-01\new-chat\M4_W2\M4_W2\document_val
+idation)
+所在位置 行:1 字符: 121
++ ... n"; Set-Location -LiteralPath $base; cargo test --locked 2>&1 | Tee-O ...
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling do...ent_validation):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.97s
+     Running unittests src\lib.rs (target\debug\deps\document_validation-4078a1d306259ad2.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\document_validation-4b7e6584c461ac34.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\validation.rs (target\debug\deps\validation-3f8a792dca7fe73c.exe)
+
+running 12 tests
+test t11_update_returns_trimmed_title_and_preserves_body ... ok
+test t12_trim_before_counting_long_title ... ok
+test t1_normal_title_is_trimmed ... ok
+test t3_create_some_empty_string_is_rejected ... ok
+test t4_blank_titles_rejected_on_create_and_update ... ok
+test t5_title_255_chars_allowed ... ok
+test t6_title_256_chars_rejected ... ok
+test t7_empty_content_allowed ... ok
+test t10_multibyte_body_boundary ... ok
+test t2_create_none_uses_default ... ok
+test t8_content_262144_bytes_allowed ... ok
+test t9_content_262145_bytes_rejected ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests document_validation
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
