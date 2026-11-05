@@ -27,8 +27,13 @@ import {
   BASE_URL,
   ApiError,
   InvalidInputError,
+  AuthError,
   NotFoundError,
+  ConflictError,
+  VersionConflictError,
+  TooLargeError,
   RateLimitedError,
+  ServiceUnavailableError,
   ServerError,
   ProtocolError,
   TimeoutError,
@@ -68,19 +73,32 @@ function makeLocalFetch(port) {
   return (url, init) => fetch(`http://127.0.0.1:${port}${url}`, init);
 }
 
-/** 可控时钟：记录 setTimeout，测试可手动触发回调（避免真等 10 秒） */
+/**
+ * 可控时钟：记录 setTimeout，测试可手动触发回调（避免真等 10 秒）。
+ *
+ * ⚠ `clearTimeout` 必须**真正取消**该定时器（与真实 `clearTimeout` 语义一致）。
+ * 若只记录不取消，则「超时保护提前结束」这类变异在本假时钟下毫无影响，
+ * 用例会误判为通过 —— 即"看起来通过而实际没测到"。
+ * `trigger()` 返回布尔值：true = 该定时器仍有效并已触发；false = 已被清除（未触发）。
+ */
 function makeTimers() {
-  const state = { setCalls: [], trigger: null, clearCalls: [] };
+  const state = { setCalls: [], trigger: null, clearCalls: [], cancelled: new Set() };
   return {
     state,
     timers: {
       setTimeout(cb, ms) {
+        const id = state.setCalls.length + 1;
         state.setCalls.push(ms);
-        state.trigger = cb;
-        return state.setCalls.length;
+        state.trigger = () => {
+          if (state.cancelled.has(id)) return false;
+          cb();
+          return true;
+        };
+        return id;
       },
       clearTimeout(id) {
         state.clearCalls.push(id);
+        state.cancelled.add(id);
       },
     },
   };
@@ -96,6 +114,42 @@ function readBody(req) {
     });
     req.on('end', () => resolve(data));
   });
+}
+
+/**
+ * 让**客户端确实拿到响应头**之后才 resolve 的 fetch 包装。
+ *
+ * M6 W3 初版的两个超时用例在服务端 `writeHead` 后立即 `startedResolve()`，
+ * 此时响应头还在 TCP 缓冲区里，`response.json()` 根本没被调用——
+ * 测到的是「等响应头超时」，不是任务书要求的「正文读取超时」。
+ *
+ * 本包装在 `fetch` resolve（= 客户端已收到响应头）之后才通知测试，
+ * 确保 abort 发生在**正文读取阶段**。
+ *
+ * ⚠ `getBaseFetch` 必须是**惰性取值**（传函数而非函数值）：
+ * `fetchImpl` 在 `start()` 里被重新赋值，而本包装常在 `start()` 之前构造。
+ * 若直接传函数值，闭包会捕获**上一次测试的旧端口**（首次为 `undefined`），
+ * 请求打到已关闭的服务端 → fetch 直接失败，永远等不到响应头。
+ *
+ * @param {() => Function} getBaseFetch 返回底层 fetch 的取值函数
+ * @param {() => void} onHeadersSettled 客户端拿到响应头后的回调
+ * @param {() => void} [onBodyRead] 客户端**开始读取正文**（`response.json()` 被调用）时的回调
+ * @returns {Function}
+ */
+function makeFetchNotifyOnHeaders(getBaseFetch, onHeadersSettled, onBodyRead) {
+  return async (url, init) => {
+    const baseFetch = getBaseFetch();
+    const response = await baseFetch(url, init);
+    onHeadersSettled();
+    if (typeof onBodyRead === 'function') {
+      const originalJson = response.json.bind(response);
+      response.json = () => {
+        onBodyRead();
+        return originalJson();
+      };
+    }
+    return response;
+  };
 }
 
 /** 发出响应头并写一部分正文后不结束，让响应体保持"读取中" */
@@ -210,21 +264,122 @@ describe('apiFetch — 真实 HTTP 传输（127.0.0.1）', () => {
       res.end(JSON.stringify({ error: { code: 'RATE_LIMITED', message: 'x' } }));
     });
 
+
     const err = await apiFetch('/documents', { fetchImpl }).catch((e) => e);
     assert.ok(err instanceof RateLimitedError);
     assert.equal(err.retryAfter, '120');
   });
 
+  test('九类 error.code 在真实传输下全部映射到对应错误类', async () => {
+    // 契约 API.md §4.1 的九个字面量，真实 HTTP 传输下逐类验证
+    const cases = [
+      [400, 'BAD_REQUEST', InvalidInputError],
+      [401, 'UNAUTHORIZED', AuthError],
+      [404, 'NOT_FOUND', NotFoundError],
+      [409, 'USERNAME_TAKEN', ConflictError],
+      [413, 'PAYLOAD_TOO_LARGE', TooLargeError],
+      [429, 'RATE_LIMITED', RateLimitedError],
+      [503, 'SERVICE_UNAVAILABLE', ServiceUnavailableError],
+      [500, 'INTERNAL_ERROR', ServerError],
+    ];
+    for (const [status, code, ErrorClass] of cases) {
+      await start((req, res) => {
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: { code, message: 'x' } }));
+      });
+      const err = await apiFetch('/documents', { fetchImpl }).catch((e) => e);
+      assert.ok(
+        err instanceof ErrorClass,
+        `${code} 应归 ${ErrorClass.name}，实际 ${err.constructor.name}`
+      );
+      assert.equal(err.status, status);
+      assert.equal(err.code, code);
+      await stopServer(server);
+      server = null;
+    }
+  });
+
+  test('409 VERSION_CONFLICT 在真实传输下携带 serverVersion（两种 409 不混淆）', async () => {
+    await start((req, res) => {
+      res.writeHead(409, { 'content-type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          error: {
+            code: 'VERSION_CONFLICT',
+            message: '文档已被其他会话修改',
+            details: { server_version: 7 },
+            request_id: 'req-real-001',
+          },
+        })
+      );
+    });
+
+    const err = await apiFetch('/documents/u1', { fetchImpl }).catch((e) => e);
+    assert.ok(err instanceof VersionConflictError);
+    assert.ok(!(err instanceof ConflictError), '两种 409 不得混淆');
+    assert.equal(err.serverVersion, 7, '必须携带服务端版本号');
+    assert.equal(err.status, 409);
+    assert.equal(err.code, 'VERSION_CONFLICT');
+    assert.equal(err.requestId, 'req-real-001');
+  });
+
+  test('409 VERSION_CONFLICT 缺 server_version → ProtocolError，不编造版本', async () => {
+    await start((req, res) => {
+      res.writeHead(409, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 'VERSION_CONFLICT', message: 'x', details: {} } }));
+    });
+
+    await assert.rejects(() => apiFetch('/documents/u1', { fetchImpl }), ProtocolError);
+  });
+
+  test('DELETE 的 expected_version 走查询参数，不进请求体', async () => {
+    // 契约 API.md §3.6：expected_version 是查询参数，不是请求体
+    let seen = null;
+    await start((req, res) => {
+      seen = { url: req.url, method: req.method, body: null };
+      res.writeHead(204);
+      res.end();
+    });
+
+    const result = await apiFetch('/documents/u1?expected_version=3', {
+      method: 'DELETE',
+      fetchImpl,
+    });
+
+    assert.equal(result, null, '204 返回 null');
+    assert.equal(seen.method, 'DELETE');
+    assert.equal(seen.url, '/api/v1/documents/u1?expected_version=3');
+    assert.ok(seen.url.includes('expected_version=3'), '版本号必须在查询串中');
+  });
+
   // ---------- 真实分块 / 断连 / 超时 ----------
 
   test('返回 JSON 响应头 + 不完整正文后断开连接 → NetworkError', async () => {
+    // 必须让响应头**真正送达客户端**再断开。
+    // `res.destroy()` 立即销毁 socket 时，TCP 缓冲区里的响应头会随之丢弃，
+    // 客户端根本收不到 —— 那样测的是「连接被重置」而非「分块响应中途断开」。
+    //
+    // 实测（4 种组合）：
+    //   立即 destroy      → 客户端拿不到响应头（fetch 不 resolve）
+    //   延迟 30ms destroy → 客户端已拿到响应头（fetch resolve）
+    // **延迟是关键**（flushHeaders 只保证写出，不保证出网）。
+    let headersArrived = false;
+    const notifyingFetch = makeFetchNotifyOnHeaders(
+      () => fetchImpl,
+      () => {
+        headersArrived = true;
+      }
+    );
+
     await start((req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.write('{"partial":');
-      res.destroy(); // 立即断开底层连接，正文不完整
+      res.flushHeaders(); // 强制写出响应头
+      setTimeout(() => res.destroy(), 30); // 留出传输窗口，确保响应头抵达客户端
     });
 
-    await assert.rejects(() => apiFetch('/documents', { fetchImpl }), NetworkError);
+    await assert.rejects(() => apiFetch('/documents', { fetchImpl: notifyingFetch }), NetworkError);
+    assert.equal(headersArrived, true, '客户端必须先收到响应头，断连场景才成立');
   });
 
   test('成功（200）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）', async () => {
@@ -233,15 +388,31 @@ describe('apiFetch — 真实 HTTP 传输（127.0.0.1）', () => {
     const started = new Promise((r) => {
       startedResolve = r;
     });
+    let bodyReadResolve;
+    const bodyRead = new Promise((r) => {
+      bodyReadResolve = r;
+    });
+    // 在**客户端拿到响应头之后**才放行 —— 确保 abort 落在正文读取阶段
+    const notifyingFetch = makeFetchNotifyOnHeaders(
+      () => fetchImpl,
+      () => startedResolve(),
+      () => bodyReadResolve()
+    );
+
     await start((req, res) => {
       holdResponse(res, 200, { 'content-type': 'application/json' });
-      startedResolve(); // 服务端已发出响应头、正文挂起
     });
 
-    const request = apiFetch('/documents', { fetchImpl, timers });
-    await started; // 服务端可控事件：确认已进入正文读取
+    const request = apiFetch('/documents', { fetchImpl: notifyingFetch, timers });
+    request.catch(() => {}); // 断言提前失败时不产生未处理拒绝
+    await started; // 客户端已收到响应头
+    // 关键前提自证：**正文读取已经开始**（response.json() 被调用），
+    // 否则测到的是「等响应头超时」，不是任务书要求的「正文读取超时」。
+    await bodyRead;
     assert.equal(state.setCalls[0], 10000, '应使用 10 秒超时');
-    state.trigger(); // 手动触发超时回调 → abort
+    // trigger() 返回 false = 该定时器已被提前清除（超时保护未覆盖正文读取阶段）。
+    // 必须断言这一点，否则「超时只覆盖 fetch 阶段」的缺陷不会被发现。
+    assert.equal(state.trigger(), true, '超时定时器必须仍然有效（未被提前清除）');
     await assert.rejects(request, TimeoutError);
     assert.equal(state.clearCalls.length, 1, 'finally 必须清理定时器');
   });
@@ -252,14 +423,25 @@ describe('apiFetch — 真实 HTTP 传输（127.0.0.1）', () => {
     const started = new Promise((r) => {
       startedResolve = r;
     });
+    let bodyReadResolve;
+    const bodyRead = new Promise((r) => {
+      bodyReadResolve = r;
+    });
+    const notifyingFetch = makeFetchNotifyOnHeaders(
+      () => fetchImpl,
+      () => startedResolve(),
+      () => bodyReadResolve()
+    );
+
     await start((req, res) => {
       holdResponse(res, 400, { 'content-type': 'application/json' });
-      startedResolve();
     });
 
-    const request = apiFetch('/documents', { fetchImpl, timers });
+    const request = apiFetch('/documents', { fetchImpl: notifyingFetch, timers });
+    request.catch(() => {});
     await started;
-    state.trigger();
+    await bodyRead;
+    assert.equal(state.trigger(), true, '超时定时器必须仍然有效（未被提前清除）');
     await assert.rejects(request, TimeoutError);
     assert.equal(state.clearCalls.length, 1, 'finally 必须清理定时器');
   });
