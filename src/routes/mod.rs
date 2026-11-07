@@ -5,11 +5,12 @@
 //! - `/health` —— 不带版本前缀的运维探针
 //! - `/api/v1` —— 业务 API，统一挂载请求体大小限制
 //!
-//! 阶段 1（W1）只注册健康检查；认证与文档路由分别在阶段 3、4 加入。
+//! 阶段 1（W1）注册健康检查；阶段 3 加入认证；阶段 4（W3）加入文档路由。
 
 use actix_web::{ResponseError, web};
 
 pub mod auth;
+pub mod documents;
 pub mod health;
 
 /// API 版本前缀。
@@ -42,7 +43,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         actix_web::error::InternalError::from_response(e, response).into()
                     }),
             )
-            // 阶段 4 在此注册 documents 路由
             .service(
                 web::scope("/auth")
                     // 认证接口请求体远小于通用上限（用户名 32 + 密码 128 字节），
@@ -50,6 +50,16 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .app_data(auth::json_config())
                     .route("/register", web::post().to(auth::register))
                     .route("/login", web::post().to(auth::login)),
+            )
+            // 文档路由。`{id}` 为 UUID，非法 UUID 由 actix 的 Path 提取器
+            // 拒绝；本项目的 404 兜底会把它转成结构化错误体。
+            .service(
+                web::scope("/documents")
+                    .route("", web::get().to(documents::list_documents))
+                    .route("", web::post().to(documents::create_document))
+                    .route("/{id}", web::get().to(documents::get_document))
+                    .route("/{id}", web::put().to(documents::update_document))
+                    .route("/{id}", web::delete().to(documents::delete_document)),
             ),
     );
 }
