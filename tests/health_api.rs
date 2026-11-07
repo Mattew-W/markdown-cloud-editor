@@ -172,8 +172,12 @@ async fn unknown_route_returns_structured_error() {
     )
     .await;
 
+    // 注意：这里必须用**真正不存在**的路径。
+    // 此前用 `/api/v1/documents` 当「未知路由」的例子，但 W3 起该路径已注册，
+    // 未带 token 时返回的是 401 而非 404 —— 该用例因此失败。
+    // 「未知路由」与「已注册但未鉴权」是两件事，必须用不同的路径分别断言。
     let req = test::TestRequest::get()
-        .uri("/api/v1/documents")
+        .uri("/api/v1/no-such-resource")
         .to_request();
     let resp = test::call_service(&app, req).await;
 
