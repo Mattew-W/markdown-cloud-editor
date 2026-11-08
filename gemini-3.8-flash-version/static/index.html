@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 3.8 Flash Markdown Studio</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
+    <!-- 引入供应商固定版本脚本 (ARCHITECTURE.md §3.4) -->
+    <script src="vendor/marked/marked.min.js"></script>
+    <script src="vendor/dompurify/purify.min.js"></script>
+</head>
+<body>
+    <!-- 顶部主导航 -->
+    <header>
+        <div class="brand">
+            <span class="brand-icon">✨</span>
+            <span>Gemini 3.8 Flash Studio</span>
+        </div>
+
+        <div class="doc-meta">
+            <input type="text" id="current-title" value="未命名文档" title="点击重命名文档">
+            <div id="sync-status-badge" class="sync-badge badge-saved">✓ 已同步</div>
+        </div>
+
+        <div class="header-actions">
+            <button id="btn-new-doc" class="primary">＋ 新建文档</button>
+            <button id="btn-save-now">💾 保存 (Ctrl+S)</button>
+            <button id="btn-delete-doc" style="color:var(--danger)">🗑 删除</button>
+            <button id="btn-toggle-gemini" class="gemini-btn">✨ AI 协同</button>
+            <span id="current-username" style="font-size:0.85rem; font-weight:600; margin-left:8px;">游客</span>
+            <button id="btn-logout" style="padding:4px 8px; font-size:0.75rem;">退出</button>
+        </div>
+    </header>
+
+    <!-- 应用主工作区 -->
+    <div class="app-container">
+        <!-- 左侧文档列表侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span style="font-weight:600; font-size:0.9rem;">我的文档</span>
+            </div>
+            <ul id="doc-list-container" class="doc-list">
+                <!-- 文档列表项动态注入 -->
+            </ul>
+        </aside>
+
+        <!-- 中部编辑器与实时预览分栏 (PROJECT_SPEC.md 核心双栏) -->
+        <main class="editor-workspace">
+            <!-- 左分栏：Markdown 编辑器 (textarea 节点，自动保存不打断焦点) -->
+            <section class="editor-pane">
+                <div class="pane-toolbar">
+                    <div class="tools">
+                        <span>Markdown 编辑 (按需自动保存 1.5s/5s)</span>
+                    </div>
+                    <div class="stats">
+                        <span id="stat-word-count">0 词</span> | 
+                        <span id="stat-char-count">0 字符</span>
+                    </div>
+                </div>
+                <textarea id="markdown-editor" placeholder="在此输入 Markdown 正文... 支持 GFM 表格、代码块与数学公式" spellcheck="false"></textarea>
+            </section>
+
+            <!-- 右分栏：安全实时渲染预览 (DOMPurify.sanitize(marked.parse(text))) -->
+            <section class="preview-pane">
+                <div class="pane-toolbar">
+                    <span>实时安全预览</span>
+                    <span style="font-size:0.75rem; color:var(--text-secondary)">DOMPurify + Marked 已就绪</span>
+                </div>
+                <div id="preview-container">
+                    <!-- HTML 渲染结果 -->
+                </div>
+            </section>
+        </main>
+
+        <!-- 右侧 Gemini 3.8 Flash 协同抽屉 (扩展模块) -->
+        <aside id="gemini-drawer" class="gemini-drawer">
+            <div class="drawer-header">
+                <span style="font-weight:700;">✨ Gemini 3.8 Flash AI Copilot</span>
+                <button id="btn-close-drawer" style="background:transparent; border:none; color:#fff; font-size:1.1rem; cursor:pointer;" onclick="document.getElementById('gemini-drawer').classList.add('hidden')">✕</button>
+            </div>
+
+            <div class="drawer-content">
+                <!-- 快捷功能区 -->
+                <div class="action-card">
+                    <h4>🚀 智能创作工具箱</h4>
+                    <div class="quick-actions">
+                        <button id="btn-ai-complete" class="quick-btn">⚡ 智能续写</button>
+                        <button id="btn-ai-polish" class="quick-btn">✨ 文档润色</button>
+                        <button id="btn-ai-summarize" class="quick-btn">📑 提炼摘要</button>
+                        <button id="btn-ai-diagram" class="quick-btn">📊 推导图表</button>
+                        <button id="btn-ai-math" class="quick-btn" style="grid-column: span 2;">📐 数学公式 (KaTeX)</button>
+                    </div>
+                </div>
+
+                <!-- AI 生成结果展示区 -->
+                <div class="action-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <h4>🤖 生成产物</h4>
+                        <span id="ai-status" style="font-size:0.75rem; color:var(--accent);">就绪</span>
+                    </div>
+                    <div id="ai-output" class="ai-output-box">点击上方快捷指令，或在下方输入对话提问...</div>
+                    <div style="display:flex; gap:6px; margin-top:8px;">
+                        <button id="btn-insert-cursor" class="primary" style="flex:1; font-size:0.75rem;">插入光标处</button>
+                        <button id="btn-replace-selection" style="flex:1; font-size:0.75rem;">替换文本</button>
+                        <button id="btn-copy-ai" style="padding:6px; font-size:0.75rem;" title="复制">📋</button>
+                    </div>
+                </div>
+
+                <!-- 交互问答对话区 -->
+                <div class="action-card" style="margin-top:auto;">
+                    <h4>💬 文档智能伴写对话</h4>
+                    <textarea id="ai-chat-input" placeholder="询问关于本文档的任何问题..." style="width:100%; height:70px; background:var(--bg-primary); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); padding:8px; font-size:0.85rem; outline:none; resize:none; margin-bottom:8px;"></textarea>
+                    <button id="btn-ai-send" class="gemini-btn" style="width:100%;">发送给 Gemini 3.8 Flash</button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 登录 / 注册模态框 -->
+    <div id="auth-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+                <button id="auth-tab-login" class="primary" style="flex:1;">登录</button>
+                <button id="auth-tab-register" style="flex:1;">注册</button>
+            </div>
+            <h3 id="auth-title">用户登录</h3>
+            <div id="auth-error" style="color:var(--danger); font-size:0.85rem; margin-bottom:12px;"></div>
+            <div class="form-group">
+                <label>用户名 (3-32位英文/数字/下划线/中划线)</label>
+                <input type="text" id="auth-username" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label>密码 (至少 12 字节)</label>
+                <input type="password" id="auth-password" autocomplete="current-password">
+            </div>
+            <button id="auth-submit" class="primary" style="width:100%; margin-top:8px;">立即登录</button>
+        </div>
+    </div>
+
+    <!-- 乐观并发冲突解决模态框 (SYNC.md §6) -->
+    <div id="conflict-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 style="color:var(--warning);">⚠ 检测到云端版本冲突</h3>
+            <p style="font-size:0.9rem; line-height:1.6; margin-bottom:16px; color:var(--text-secondary);">
+                当前文档已被其他会话修改，服务端版本已推进。为防止数据意外覆写，请选择处理策略：
+            </p>
+            <div style="display:flex; gap:10px;">
+                <button id="btn-conflict-overwrite" class="gemini-btn" style="flex:1;">强行用本地覆盖</button>
+                <button id="btn-conflict-reload" class="primary" style="flex:1;">重新拉取云端版本</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

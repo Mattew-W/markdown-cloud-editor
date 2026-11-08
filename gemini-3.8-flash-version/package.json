@@ -1,0 +1,9 @@
+{
+  "name": "gemini-markdown-cloud-editor-tests",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Frontend test harness for Gemini 3.8 Flash Markdown Studio",
+  "scripts": {
+    "test": "node --test \"tests/frontend/*.test.js\""
+  }
+}
