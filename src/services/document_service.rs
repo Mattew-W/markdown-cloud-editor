@@ -303,4 +303,62 @@ mod tests {
         let err_neg = validate_expected_version(-1).unwrap_err();
         assert_eq!(err_neg.code(), crate::error::ErrorCode::BadRequest);
     }
+    // T3：创建时显式传入空串（非 None）必须拒绝，不能落到默认标题。
+    #[test]
+    fn 创建显式空串标题被拒绝() {
+        let err = normalize_create_title(Some("")).unwrap_err();
+        assert_eq!(err.code(), crate::error::ErrorCode::BadRequest);
+    }
+
+    // T4：创建时显式传入全角空白标题被拒绝。
+    #[test]
+    fn 创建时全角空白标题被拒绝() {
+        let err = normalize_create_title(Some("\u{3000}\u{3000}")).unwrap_err();
+        assert_eq!(err.code(), crate::error::ErrorCode::BadRequest);
+    }
+
+    // T7：空正文合法。
+    #[test]
+    fn 空正文通过校验() {
+        assert!(validate_content("").is_ok());
+    }
+
+    // T10：多字节正文恰好 262144 字节通过，再加一个字节拒绝。
+    #[test]
+    fn 多字节正文恰好262144字节通过() {
+        let body = "中".repeat(87381) + "a";
+        assert_eq!(body.len(), MAX_CONTENT_BYTES);
+        assert!(validate_content(&body).is_ok());
+
+        let plus_one = body + "a";
+        let err = validate_content(&plus_one).unwrap_err();
+        assert_eq!(err.code(), crate::error::ErrorCode::PayloadTooLarge);
+    }
+
+    // 正文首尾空白也计入字节上限，不能先 trim 再校验。
+    #[test]
+    fn 正文首尾空白计入字节限制() {
+        let body = "a".repeat(MAX_CONTENT_BYTES) + " ";
+        let err = validate_content(&body).unwrap_err();
+        assert_eq!(err.code(), crate::error::ErrorCode::PayloadTooLarge);
+    }
+
+    // T12：长标题前后加空白，先 trim 再计数，255 接受、256 拒绝。
+    #[test]
+    fn 长标题带空白先修剪再计数() {
+        let at_limit = "  ".to_string() + &"中".repeat(255) + "  ";
+        let accepted = validate_title(&at_limit).unwrap();
+        assert_eq!(accepted.chars().count(), 255);
+
+        let over_limit = "  ".to_string() + &"中".repeat(256) + "  ";
+        let err = validate_title(&over_limit).unwrap_err();
+        assert_eq!(err.code(), crate::error::ErrorCode::BadRequest);
+    }
+
+    // expected_version 合法上界 i32::MAX 通过（API §3.5：1–2147483647）。
+    #[test]
+    fn 期望版本号合法上界通过() {
+        let version = validate_expected_version(i32::MAX).unwrap();
+        assert_eq!(version, i32::MAX);
+    }
 }

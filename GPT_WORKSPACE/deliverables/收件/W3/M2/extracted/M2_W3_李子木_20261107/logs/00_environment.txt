@@ -1,0 +1,94 @@
+M2 W3 环境与静态检查日志
+==================================================
+日期：2026-11-07 11:15:02 +08:00
+系统：Microsoft Windows NT 10.0.26200.0
+Shell：Windows PowerShell 5.1.26100.9711
+工作目录：M2_W3_李子木_20261107
+
+状态：W3 SQL 未执行（环境不可用）
+说明：本文件是真实的环境/静态检查日志，不是数据库执行日志。
+      schema、fixtures、W3 regression 均未在 PostgreSQL 中运行。
+
+一、数据库环境
+--------------------------------------------------
+[命令] Get-Command psql -ErrorAction SilentlyContinue
+[结果] NOT FOUND
+
+[命令] Get-Command pg_ctl -ErrorAction SilentlyContinue
+[结果] NOT FOUND
+
+[命令] Get-Command docker -ErrorAction SilentlyContinue
+[结果] NOT FOUND
+
+[命令] Get-Service -Name 'postgresql*'
+[结果] NONE（无匹配服务）
+
+[命令] Test-Path 'D:\PostgreSQL\17\bin\psql.exe'
+[结果] False
+
+[命令] Test-Path 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
+[结果] False
+
+[命令] cmd /c where psql
+[结果] INFO: Could not find files for the given pattern(s).
+[退出码] 1
+
+[命令] wsl -l -q
+[结果] 未安装 Linux 发行版，无法提供 PostgreSQL。
+
+[命令] .\migrations\checks\w3\run_w3_regression.ps1 -Database mce_w3_practice
+[结果] ERROR: psql not found: psql. Add PostgreSQL bin to PATH or pass -Psql <path>.
+[退出码] 127
+[说明] 入口的 no-psql 保护生效；没有执行 SQL，也没有创建 schema。
+
+二、其他工具链
+--------------------------------------------------
+[命令] cargo --version
+[结果] cargo 1.99.0 (5f94df478 2026-08-27)
+
+[命令] rustc --version
+[结果] rustc 1.99.0 (b940084d7 2026-09-28)
+
+[命令] Get-Command node
+[结果] NOT FOUND
+
+说明：W3 是 SQL 迁移/约束回归，不需要 Node；Rust 未用于 W3。
+
+三、下发包完整性
+--------------------------------------------------
+[方法] 读取 SHA256清单.txt，逐项计算 62 个文件的 SHA256
+[结果] 62/62 匹配，0 不匹配
+
+四、静态检查
+--------------------------------------------------
+[检查] W3 SQL 文件 UTF-8/BOM
+[结果] UTF-8，无 BOM
+
+[检查] regression.sql 结构
+[结果] $w3$ 2 次（配对）；BEGIN; 1；ROLLBACK; 1；
+       7 个嵌套 BEGIN/EXCEPTION；7 个 GET STACKED；
+       8 个 RAISE NOTICE 'PASS...'
+
+[检查] run_w3_regression.sql
+[结果] ON_ERROR_STOP；2 个 \ir；2 个内嵌 DO（pre/post）；无外层 BEGIN/COMMIT
+
+[检查] run_w3_regression.ps1
+[结果] PowerShell 语法解析 0 错误
+
+[检查] 负向对照差异
+[结果] DIFF.txt 只显示不存在 owner 的预期码两行 23503 -> 23505
+
+五、SQL 执行记录
+--------------------------------------------------
+[未执行] migrations/0001_init.sql
+[未执行] migrations/checks/w3/run_w3_regression.sql
+[未执行] migrations/checks/w3/run_w3_regression.ps1
+[未执行] migrations/checks/w3/negative_control/run_w3_negative_control.sql
+[原因] 本机无 psql、无 PostgreSQL 服务、无 Docker。
+
+六、结论
+--------------------------------------------------
+- 没有实际 SQLSTATE、没有实际行数结果、没有负向对照的实测退出码。
+- 没有生成数据库连接串、账号、密码或 .env。
+- 不得把本日志当作“W3 验证通过”“可重复”或“无残留”的证据。
+- 复测步骤见 README.md 与 检查记录.md；执行后把真实输出保存到 logs/。

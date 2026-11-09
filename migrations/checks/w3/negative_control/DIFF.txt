@@ -1,0 +1,15 @@
+diff --git "a/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\regression.sql" "b/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\negative_control\\regression_wrong_expected.sql"
+index 2eb370c..0e9376b 100644
+--- "a/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\regression.sql"
++++ "b/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\negative_control\\regression_wrong_expected.sql"
+@@ -114,8 +114,8 @@ BEGIN
+ 
+     IF v_state = '00000' THEN
+         RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: INSERT succeeded; expected 23503';
+-    ELSIF v_state <> '23503' THEN
+-        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: expected 23503, got % (%)',
++    ELSIF v_state <> '23505' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: expected 23505, got % (%)',
+             v_state, v_message;
+     END IF;
+     RAISE NOTICE 'PASS [nonexistent owner]: SQLSTATE 23503';

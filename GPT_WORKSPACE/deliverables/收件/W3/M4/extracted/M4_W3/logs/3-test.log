@@ -1,0 +1,132 @@
+﻿cargo :    Compiling markdown-cloud-editor v0.1.0 (C:\Users\123\Doubao\chats\2026-11-01\new-chat\M4_W3\baseline)
+所在位置 行:1 字符: 180
++ ... .log; "fmt-check退出码: $LASTEXITCODE"; cargo test --locked 2>&1 | Tee-O ...
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling ma...M4_W3\baseline):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 35.46s
+     Running unittests src\lib.rs (target\debug\deps\markdown_cloud_editor-1a2e4535037f543d.exe)
+
+running 79 tests
+test auth::dto::tests::合法文档id解析成功 ... ok
+test auth::dto::tests::密码不因首尾空格被裁剪 ... ok
+test auth::dto::tests::用户名去空白并转小写 ... ok
+test auth::dto::tests::用户名拒绝非法字符 ... ok
+test auth::dto::tests::用户名错误带字段名便于前端定位 ... ok
+test auth::dto::tests::用户名长度按字符计 ... ok
+test auth::dto::tests::密码长度按字节而非字符 ... ok
+test auth::dto::tests::注册校验返回归一化用户名 ... ok
+test auth::dto::tests::登录不因密码过短而拒绝 ... ok
+test auth::dto::tests::登录拒绝空密码 ... ok
+test auth::dto::tests::超长密码被拒绝 ... ok
+test auth::dto::tests::非法文档id报400且指出字段 ... ok
+test auth::password::tests::密码策略检查 ... ok
+test auth::password::tests::损坏哈希返回错误且不崩溃 ... ok
+test auth::password::tests::空串与残缺串不触发panic ... ok
+test auth::password::tests::缺salt或缺hash的串报格式错而非密码错 ... ok
+test auth::password::tests::非法参数被拒绝 ... ok
+test auth::token::tests::ttl取i64max返回错误不panic ... ok
+test auth::token::tests::ttl取u64max返回错误不panic ... ok
+test auth::token::tests::不同签发者的token被拒绝 ... ok
+test auth::token::tests::正确签名但aud错误被拒绝 ... ok
+test auth::token::tests::空sub被拒绝 ... ok
+test auth::token::tests::签发后可验回原载荷 ... ok
+test auth::token::tests::签名正确但缺aud被拒绝 ... ok
+test auth::token::tests::签名正确但缺exp被拒绝 ... ok
+test auth::token::tests::算法降级攻击被阻断 ... ok
+test auth::token::tests::篡改签名段失败 ... ok
+test auth::token::tests::篡改载荷后验签失败 ... ok
+test auth::token::tests::过期token被识别为过期 ... ok
+test auth::token::tests::错误密钥无法验签 ... ok
+test auth::token::tests::非jwt字符串被拒绝 ... ok
+test config::tests::debug输出不含密钥 ... ok
+test config::tests::ttl越界被拒绝 ... ok
+test config::tests::低熵密钥被拒绝 ... ok
+test config::tests::占位密钥被拒绝 ... ok
+test config::tests::合规密钥通过校验 ... ok
+test config::tests::恰好32字节的密钥通过 ... ok
+test config::tests::规范常量与文档一致 ... ok
+test config::tests::过短密钥被拒绝 ... ok
+test config::tests::非法监听地址被拒绝 ... ok
+test error::tests::不可见资源返回404而非403 ... ok
+test error::tests::其他错误不带details字段 ... ok
+test error::tests::内部错误不泄露细节 ... ok
+test error::tests::版本冲突携带server_version ... ok
+test error::tests::每个错误码映射到规范要求的状态码 ... ok
+test error::tests::错误码字面量符合规范 ... ok
+test error::tests::限流错误带retry_after值 ... ok
+test middleware::tests::作用域内取到传入的请求id ... ok
+test middleware::tests::作用域结束后恢复原值 ... ok
+test middleware::tests::新请求id为合法uuid_v4 ... ok
+test middleware::tests::未安装中间件时回退占位值 ... ok
+test middleware::tests::每次生成互不相同 ... ok
+test repositories::users::tests::唯一约束识别依赖错误码与约束名 ... ok
+test repositories::users::tests::时间戳格式化为utc_rfc3339 ... ok
+test routes::auth::tests::参数不兼容映射为500 ... ok
+test routes::auth::tests::哈希串损坏映射为500而非401 ... ok
+test routes::auth::tests::密码不匹配映射为401 ... ok
+test routes::auth::tests::未认证映射为401 ... ok
+test services::document_service::tests::全角空格与空白字符修剪后为空被拒绝 ... ok
+test services::document_service::tests::分页默认值与越界校验 ... ok
+test services::document_service::tests::创建文档时显式传入空标题被拒绝 ... ok
+test services::document_service::tests::创建文档时省略标题回退为未命名文档 ... ok
+test services::document_service::tests::创建时全角空白标题被拒绝 ... ok
+test services::document_service::tests::创建显式空串标题被拒绝 ... ok
+test services::document_service::tests::多字节正文恰好262144字节通过 ... ok
+test services::document_service::tests::恰好255字符标题通过校验 ... ok
+test services::document_service::tests::期望版本号合法上界通过 ... ok
+test services::document_service::tests::期望版本号小于1被拒绝 ... ok
+test services::document_service::tests::正常标题校验通过且去除首尾空白 ... ok
+test services::document_service::tests::正文不做修剪按原始字节计数 ... ok
+test services::document_service::tests::正文边界与超限测试 ... ok
+test services::document_service::tests::空正文通过校验 ... ok
+test services::document_service::tests::超过255字符标题被拒绝 ... ok
+test services::document_service::tests::长标题带空白先修剪再计数 ... ok
+test auth::password::tests::正确密码验证通过 ... ok
+test auth::password::tests::错误密码被拒绝且归类为不匹配 ... ok
+test auth::password::tests::同一密码两次哈希不同但都能验证 ... ok
+test auth::password::tests::校验沿用哈希串自带参数 ... ok
+test auth::password::tests::不同参数生成的哈希互不通用 ... ok
+
+test result: ok. 79 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.99s
+
+     Running unittests src\main.rs (target\debug\deps\markdown_cloud_editor-d99b0cd14decb71c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\auth_db.rs (target\debug\deps\auth_db-66c1e793993bd664.exe)
+
+running 8 tests
+test 密码哈希以argon2id_phc格式存储 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 密码错误与用户不存在返回完全相同的401 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 数据库约束拦下超长正文 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 数据库约束拦下非法用户名 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 注册响应不含任何敏感字段 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 注册成功返回201与可用token ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 用户名归一化后重名返回409 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 登录成功返回200 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+
+test result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\health_api.rs (target\debug\deps\health_api-bbc7dbf14f4e8630.exe)
+
+running 7 tests
+test health_returns_200_when_db_reachable ... ignored, 需要真实 PostgreSQL：先设 TEST_DATABASE_URL 再用 --ignored 运行
+test unknown_route_returns_structured_error ... ok
+test invalid_request_id_falls_back_to_uuid ... ok
+test response_carries_request_id_header ... ok
+test health_returns_503_when_db_unreachable ... ok
+test health_body_leaks_no_database_details ... ok
+test incoming_request_id_is_reused ... ok
+
+test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+   Doc-tests markdown_cloud_editor
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

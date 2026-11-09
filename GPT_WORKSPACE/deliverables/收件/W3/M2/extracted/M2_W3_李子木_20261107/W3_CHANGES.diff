@@ -1,0 +1,1417 @@
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3\\baseline/README.md" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/README.md"
+index 5f149a3..bc7cf11 100644
+--- "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3\\baseline/README.md"
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/README.md"
+@@ -64,3 +64,132 @@ M1–M6 的 W1 归档索引在 [课程交件目录](GPT_WORKSPACE/deliverables/
+ ## 协作方式
+ 
+ 从最新 main 创建 feature/、fix/ 或 docs/ 分支，通过 Pull Request 合并；不要直接推送到 main。详细要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。
++
++---
++
++# M2 W3 — 迁移与约束的可复现回归
++
++> 本节由 M2 新增；上面的 baseline README 内容保持不变。
++
++## 基线
++
++- 基线：包内 `baseline/`，Git main 提交 `42e9e7fce4a76f41e69ee33f6f208383e8e04f44` 的快照。
++- W2 已交的 `migrations/checks/{fixtures.sql,verify_constraints.sql,run_checks.sql}` 保留原样，未修改。
++- W2 的 11 例由 M1 在 PostgreSQL 17.11 实测通过；**这不是本人执行**。W3 不复用 W2 夹具，也不把 M1 的实测写成本人结果。
++- W3 的代码/测试新增内容只在 `migrations/checks/w3/`；另新增 W3 文档、日志和差异文件。
++  `migrations/0001_init.sql`、`migrations/checks/` 下原有 W2 脚本、`src/`、`frontend/`、`tests/` 均未改动。
++
++## 新增文件
++
++| 文件 | 用途 |
++| --- | --- |
++| `migrations/checks/w3/regression.sql` | 隔离 schema 内的断言式 W3 回归；自行 `BEGIN/ROLLBACK` |
++| `migrations/checks/w3/run_w3_regression.sql` | psql 入口：创建临时 schema、加载冻结迁移、执行回归、删除 schema |
++| `migrations/checks/w3/run_w3_regression.ps1` | 推荐入口：生成唯一 `t_w3_*` schema，失败时也清理 |
++| `migrations/checks/w3/negative_control/regression_wrong_expected.sql` | 故意把不存在 owner 的预期码改成 `23505` 的副本 |
++| `migrations/checks/w3/negative_control/run_w3_negative_control.sql` | 负向对照入口 |
++| `migrations/checks/w3/negative_control/DIFF.txt` | 负向副本与主脚本的差异，只有预期码两行 |
++| `W3_CHANGES.diff` | 本工作副本相对 baseline 的完整差异 |
++| `W3_FILES.txt` | 新增/修改文件清单与 SHA256 |
++| `检查记录.md` | 环境检查、静态检查、11 例复述、W3 逐项输入/预期/实际/断言 |
++| `交付说明.txt` | 身份、AI 工具、完成/未完成、本人与 AI 分工 |
++| `logs/00_environment.txt` | 本机环境检查的真实原始记录；SQL 未执行 |
++
++## W3 回归用例（最低要求）
++
++| 编号 | 输入/动作 | 预期 |
++| --- | --- | --- |
++| W3-1 | 两个合法 UUID 用户分别插入一篇同名标题文档 | 两行都成功，行数 2、不同 owner 数 2 |
++| W3-2 | 插入 owner 为合法但不存在的 UUID `99999999-9999-4999-8999-999999999999` | SQLSTATE `23503` |
++| W3-3 | 标题 255 字符 | INSERT 成功，`char_length = 255` |
++| W3-4 | 标题 256 字符 | SQLSTATE `22001`（VARCHAR 长度错误，非 CHECK） |
++| W3-5 | 正文 `repeat('中',87381)||'a'`（262144 UTF-8 字节） | INSERT 成功，`octet_length = 262144` |
++| W3-6 | 正文 262145 字节 | SQLSTATE `23514` |
++| W3-7 | `version = 0` | SQLSTATE `23514` |
++| W3-8 | 前后行数 | 隔离 schema 的 `users`/`documents` 均为 0，前后一致 |
++| W3-9 | 负向对照：预期码改成 `23505` | 实际 `23503` 与预期不符，脚本非零退出 |
++
++## 运行依赖
++
++- PostgreSQL 17 系列；`psql` 在 `PATH`。
++- PowerShell 5.1+（仅推荐入口需要；也可直接用 psql）。
++- 一个**独立、空的练习数据库**，编码 UTF-8；不要使用个人、共享或正式数据库。
++- W3 只做 SQL；不需要 Node.js、Rust 或网络。
++
++## 运行
++
++在项目根目录（本工作副本）执行：
++
++```powershell
++.\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名>
++```
++
++入口会：
++
++1. 生成唯一临时 schema（默认 `t_w3_<时间>_<PID>`）；
++2. 在该 schema 上加载 `migrations/0001_init.sql`（原文件，不改）；
++3. 执行 `regression.sql`；
++4. 回归内部 `BEGIN/ROLLBACK`，并在回滚后检查 `users`/`documents` 均为 0；
++5. 删除临时 schema（失败也会在 `finally` 中清理）；
++6. 把 psql 原始输出写入 `logs/w3_regression_*.log`。
++
++预期成功输出包含各 `PASS` 通知、`ALL W3 REGRESSION CHECKS PASSED`、
++`PASS [post-rollback counts]: users=0, documents=0`、`W3 regression: DONE`，
++退出码为 0。
++
++也可以直接用 psql（失败时可能留下临时 schema，需手动清理）：
++
++```powershell
++psql -X -v ON_ERROR_STOP=1 -d <练习库名> -v w3_schema=t_w3_manual -f migrations/checks/w3/run_w3_regression.sql
++```
++
++`-Database` 可以传数据库名或 libpq 连接串；凭据放在 `pgpass`/`PGPASSWORD` 等本地
++环境中，不要写进脚本、README 或仓库。
++
++若直接 psql 失败留下 `t_w3_*` schema，可用基线已有的清理脚本：
++
++```powershell
++psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f migrations/cleanup_test_schemas.sql
++```
++
++## 负向对照（证明断言不是空壳）
++
++```powershell
++.\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名> -Entry negative_control\run_w3_negative_control.sql
++```
++
++该入口加载的副本只把 W3-2 的预期码从 `23503` 改成 `23505`；实际仍得到 `23503`，
++因此脚本会 `RAISE EXCEPTION` 并以非零状态退出。**非零退出是预期结果**，
++不是主回归失败；不要把负向对照当作验收通过。
++
++## 运行状态
++
++- 本机没有 `psql`、PostgreSQL 服务或 Docker；W3 的所有 SQL 均**未执行**。
++- `logs/00_environment.txt` 是真实环境检查日志，不是 SQL 执行日志。
++- 没有实际 SQLSTATE、没有可重复性结论、没有行数残留的实测结论。
++- 没有验证 API 层的 owner 隔离、并发保存/409、HTTP 或 Rust 服务；本 W3 只验证数据库约束。
++
++## W2 解释纠偏
++
++- 整数 `99999` 不是合法 UUID，不能用来测外键。对 UUID 列**赋值**时是类型不匹配
++  （常见 `42804`）；用于**比较**时具体错误码取决于语句（常见 `42883`：没有
++  `uuid = integer` 运算符）。字符串 `'99999'` 才会进入 UUID 输入函数并报 `22P02`。
++- 只有语法合法但未插入 `users` 的 UUID（如 `99999999-9999-4999-8999-999999999999`）
++  才会触发外键检查并得到 `23503`。
++- 具体以实际 SQL 语句和本机输出为准；本次没有 PostgreSQL，未实测。
++
++## 不覆盖的范围
++
++- 数据库外键只保证 owner 存在，不保证 API 的 owner 隔离；后者必须在 repository
++  查询中限定 `owner_id`，本 W3 不验证。
++- 不验证乐观锁并发更新、`VERSION_CONFLICT`/409、HTTP 状态码或自动保存状态机。
++- 不声称已覆盖完整 Unicode 空白；schema 的显式空白列表仍是兜底，应用层
++  `char::is_whitespace()` 才是完整判定。
++
++## 差异与完整性
++
++- `W3_CHANGES.diff` 显示本工作副本相对 baseline 的源码/文档改动；预期只新增
++  `migrations/checks/w3/`、W3 文档和本 README 的追加段。该 diff 不包含
++  `W3_FILES.txt` 和 diff 自身（它们是交付时生成的索引文件）。
++- `W3_FILES.txt` 列出新增/修改文件及 SHA256；可据此复核。
++- 不包含 `.env`、真实密钥、`.git`、`target`、`node_modules` 或个人数据库。
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/logs/00_environment.txt" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/logs/00_environment.txt"
+new file mode 100644
+index 0000000..8428577
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/logs/00_environment.txt"
+@@ -0,0 +1,94 @@
++M2 W3 环境与静态检查日志
++==================================================
++日期：2026-11-07 11:15:02 +08:00
++系统：Microsoft Windows NT 10.0.26200.0
++Shell：Windows PowerShell 5.1.26100.9711
++工作目录：M2_W3_李子木_20261107
++
++状态：W3 SQL 未执行（环境不可用）
++说明：本文件是真实的环境/静态检查日志，不是数据库执行日志。
++      schema、fixtures、W3 regression 均未在 PostgreSQL 中运行。
++
++一、数据库环境
++--------------------------------------------------
++[命令] Get-Command psql -ErrorAction SilentlyContinue
++[结果] NOT FOUND
++
++[命令] Get-Command pg_ctl -ErrorAction SilentlyContinue
++[结果] NOT FOUND
++
++[命令] Get-Command docker -ErrorAction SilentlyContinue
++[结果] NOT FOUND
++
++[命令] Get-Service -Name 'postgresql*'
++[结果] NONE（无匹配服务）
++
++[命令] Test-Path 'D:\PostgreSQL\17\bin\psql.exe'
++[结果] False
++
++[命令] Test-Path 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
++[结果] False
++
++[命令] cmd /c where psql
++[结果] INFO: Could not find files for the given pattern(s).
++[退出码] 1
++
++[命令] wsl -l -q
++[结果] 未安装 Linux 发行版，无法提供 PostgreSQL。
++
++[命令] .\migrations\checks\w3\run_w3_regression.ps1 -Database mce_w3_practice
++[结果] ERROR: psql not found: psql. Add PostgreSQL bin to PATH or pass -Psql <path>.
++[退出码] 127
++[说明] 入口的 no-psql 保护生效；没有执行 SQL，也没有创建 schema。
++
++二、其他工具链
++--------------------------------------------------
++[命令] cargo --version
++[结果] cargo 1.99.0 (5f94df478 2026-08-27)
++
++[命令] rustc --version
++[结果] rustc 1.99.0 (b940084d7 2026-09-28)
++
++[命令] Get-Command node
++[结果] NOT FOUND
++
++说明：W3 是 SQL 迁移/约束回归，不需要 Node；Rust 未用于 W3。
++
++三、下发包完整性
++--------------------------------------------------
++[方法] 读取 SHA256清单.txt，逐项计算 62 个文件的 SHA256
++[结果] 62/62 匹配，0 不匹配
++
++四、静态检查
++--------------------------------------------------
++[检查] W3 SQL 文件 UTF-8/BOM
++[结果] UTF-8，无 BOM
++
++[检查] regression.sql 结构
++[结果] $w3$ 2 次（配对）；BEGIN; 1；ROLLBACK; 1；
++       7 个嵌套 BEGIN/EXCEPTION；7 个 GET STACKED；
++       8 个 RAISE NOTICE 'PASS...'
++
++[检查] run_w3_regression.sql
++[结果] ON_ERROR_STOP；2 个 \ir；2 个内嵌 DO（pre/post）；无外层 BEGIN/COMMIT
++
++[检查] run_w3_regression.ps1
++[结果] PowerShell 语法解析 0 错误
++
++[检查] 负向对照差异
++[结果] DIFF.txt 只显示不存在 owner 的预期码两行 23503 -> 23505
++
++五、SQL 执行记录
++--------------------------------------------------
++[未执行] migrations/0001_init.sql
++[未执行] migrations/checks/w3/run_w3_regression.sql
++[未执行] migrations/checks/w3/run_w3_regression.ps1
++[未执行] migrations/checks/w3/negative_control/run_w3_negative_control.sql
++[原因] 本机无 psql、无 PostgreSQL 服务、无 Docker。
++
++六、结论
++--------------------------------------------------
++- 没有实际 SQLSTATE、没有实际行数结果、没有负向对照的实测退出码。
++- 没有生成数据库连接串、账号、密码或 .env。
++- 不得把本日志当作“W3 验证通过”“可重复”或“无残留”的证据。
++- 复测步骤见 README.md 与 检查记录.md；执行后把真实输出保存到 logs/。
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/DIFF.txt" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/DIFF.txt"
+new file mode 100644
+index 0000000..c8bc5d5
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/DIFF.txt"
+@@ -0,0 +1,15 @@
++diff --git "a/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\regression.sql" "b/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\negative_control\\regression_wrong_expected.sql"
++index 2eb370c..0e9376b 100644
++--- "a/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\regression.sql"
+++++ "b/.\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107\\migrations\\checks\\w3\\negative_control\\regression_wrong_expected.sql"
++@@ -114,8 +114,8 @@ BEGIN
++ 
++     IF v_state = '00000' THEN
++         RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: INSERT succeeded; expected 23503';
++-    ELSIF v_state <> '23503' THEN
++-        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: expected 23503, got % (%)',
+++    ELSIF v_state <> '23505' THEN
+++        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: expected 23505, got % (%)',
++             v_state, v_message;
++     END IF;
++     RAISE NOTICE 'PASS [nonexistent owner]: SQLSTATE 23503';
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/regression_wrong_expected.sql" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/regression_wrong_expected.sql"
+new file mode 100644
+index 0000000..0e9376b
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/regression_wrong_expected.sql"
+@@ -0,0 +1,285 @@
++-- ============================================================
++-- M2 W3 · regression.sql
++-- 目的：在隔离 schema 中对冻结迁移 0001_init.sql 的约束做可复现回归。
++-- 前置：run_w3_regression.sql 已创建临时 schema、设置 search_path，
++--       并在同一会话中加载 migrations/0001_init.sql。
++-- 事务：本文件自行 BEGIN/ROLLBACK；不写 public，不依赖现有用户数据。
++--
++-- 覆盖（至少）：
++--   1. 两个合法 UUID 用户可以有同名文档标题
++--   2. 合法但不存在的 UUID owner -> 23503
++--   3. 标题 255 字符成功 / 256 字符 -> 22001
++--   4. 正文 262144 UTF-8 字节成功 / 262145 字节 -> 23514
++--   5. version = 0 -> 23514
++--   6. 前后行数一致，最终 ROLLBACK
++-- ============================================================
++
++SET client_encoding = 'UTF8';
++
++BEGIN;
++
++DO $w3$
++DECLARE
++    v_state           text;
++    v_message         text;
++    v_users_before    bigint;
++    v_docs_before     bigint;
++    v_users_after     bigint;
++    v_docs_after      bigint;
++    v_count           bigint;
++    v_distinct_owners bigint;
++    v_title_len       integer;
++    v_content_bytes   integer;
++BEGIN
++    -- --------------------------------------------------------
++    -- 0. 隔离 schema 必须为空，避免依赖现有数据
++    -- --------------------------------------------------------
++    SELECT count(*) INTO v_users_before FROM users;
++    SELECT count(*) INTO v_docs_before FROM documents;
++    RAISE NOTICE 'W3 baseline: users=%, documents=%', v_users_before, v_docs_before;
++
++    IF v_users_before <> 0 OR v_docs_before <> 0 THEN
++        RAISE EXCEPTION 'W3 SETUP FAILED: isolated schema is not empty (users=%, documents=%)',
++            v_users_before, v_docs_before;
++    END IF;
++
++    -- --------------------------------------------------------
++    -- 1. 两个合法 UUID 用户可以有同名标题
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO users (id, username, password_hash, created_at)
++        VALUES
++            ('c1111111-1111-4111-8111-111111111111',
++             'w3_alice',
++             'DB_TEST_ONLY_FAKE_HASH_W3_ALICE_NOT_ARGON2',
++             TIMESTAMPTZ '2026-11-01 00:00:00+00'),
++            ('c2222222-2222-4222-8222-222222222222',
++             'w3_bob',
++             'DB_TEST_ONLY_FAKE_HASH_W3_BOB_NOT_ARGON2',
++             TIMESTAMPTZ '2026-11-01 00:01:00+00');
++
++        INSERT INTO documents (id, owner_id, title, content, version, created_at, updated_at)
++        VALUES
++            ('d1111111-1111-4111-8111-111111111111',
++             'c1111111-1111-4111-8111-111111111111',
++             'W3 同名标题',
++             'alice 的内容',
++             1,
++             TIMESTAMPTZ '2026-11-01 00:10:00+00',
++             TIMESTAMPTZ '2026-11-01 00:10:00+00'),
++            ('d2222222-2222-4222-8222-222222222222',
++             'c2222222-2222-4222-8222-222222222222',
++             'W3 同名标题',
++             'bob 的内容',
++             1,
++             TIMESTAMPTZ '2026-11-01 00:11:00+00',
++             TIMESTAMPTZ '2026-11-01 00:11:00+00');
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state <> '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [same-title setup]: expected success, got % (%)',
++            v_state, v_message;
++    END IF;
++
++    SELECT count(*), count(DISTINCT owner_id)
++      INTO v_count, v_distinct_owners
++      FROM documents
++     WHERE title = 'W3 同名标题';
++
++    IF v_count <> 2 OR v_distinct_owners <> 2 THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [same title across two users]: rows=%, distinct owners=%',
++            v_count, v_distinct_owners;
++    END IF;
++    RAISE NOTICE 'PASS [same title across two users]: rows=2, owners=2';
++
++    -- --------------------------------------------------------
++    -- 2. 合法但不存在的 UUID owner -> 23503
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content)
++        VALUES ('99999999-9999-4999-8999-999999999999', 'W3 外键测试', '正文');
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: INSERT succeeded; expected 23503';
++    ELSIF v_state <> '23505' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: expected 23505, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [nonexistent owner]: SQLSTATE 23503';
++
++    -- --------------------------------------------------------
++    -- 3a. 标题 255 字符 -> 成功
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (id, owner_id, title, content, version)
++        VALUES (
++            'd3333333-3333-4333-8333-333333333333',
++            'c1111111-1111-4111-8111-111111111111',
++            repeat('t', 255),
++            '标题边界正文',
++            1
++        );
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state <> '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 255]: expected success, got % (%)',
++            v_state, v_message;
++    END IF;
++
++    SELECT char_length(title) INTO v_title_len
++      FROM documents
++     WHERE id = 'd3333333-3333-4333-8333-333333333333';
++    IF v_title_len IS DISTINCT FROM 255 THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 255]: stored char_length=%, expected 255', v_title_len;
++    END IF;
++    RAISE NOTICE 'PASS [title 255]: INSERT succeeded, char_length=255';
++
++    -- --------------------------------------------------------
++    -- 3b. 标题 256 字符 -> 22001（VARCHAR(255) 长度错误）
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content)
++        VALUES ('c1111111-1111-4111-8111-111111111111', repeat('t', 256), '正文');
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 256]: INSERT succeeded; expected 22001';
++    ELSIF v_state <> '22001' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 256]: expected 22001, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [title 256]: SQLSTATE 22001';
++
++    -- --------------------------------------------------------
++    -- 4a. 正文 262144 UTF-8 字节 -> 成功
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (id, owner_id, title, content, version)
++        VALUES (
++            'd4444444-4444-4444-8444-444444444444',
++            'c1111111-1111-4111-8111-111111111111',
++            'W3 正文字节边界',
++            repeat('中', 87381) || 'a',
++            1
++        );
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state <> '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262144]: expected success, got % (%)',
++            v_state, v_message;
++    END IF;
++
++    SELECT octet_length(content) INTO v_content_bytes
++      FROM documents
++     WHERE id = 'd4444444-4444-4444-8444-444444444444';
++    IF v_content_bytes IS DISTINCT FROM 262144 THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262144]: stored bytes=%, expected 262144',
++            v_content_bytes;
++    END IF;
++    RAISE NOTICE 'PASS [content 262144]: INSERT succeeded, octet_length=262144';
++
++    -- --------------------------------------------------------
++    -- 4b. 正文 262145 字节 -> 23514
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content)
++        VALUES (
++            'c1111111-1111-4111-8111-111111111111',
++            'W3 正文超限',
++            repeat('中', 87381) || 'ab'
++        );
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262145]: INSERT succeeded; expected 23514';
++    ELSIF v_state <> '23514' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262145]: expected 23514, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [content 262145]: SQLSTATE 23514';
++
++    -- --------------------------------------------------------
++    -- 5. version = 0 -> 23514
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content, version)
++        VALUES ('c1111111-1111-4111-8111-111111111111', 'W3 版本零', '正文', 0);
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [version 0]: INSERT succeeded; expected 23514';
++    ELSIF v_state <> '23514' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [version 0]: expected 23514, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [version 0]: SQLSTATE 23514';
++
++    -- --------------------------------------------------------
++    -- 6. 清理测试行，核对前后行数
++    -- --------------------------------------------------------
++    DELETE FROM documents
++     WHERE owner_id IN ('c1111111-1111-4111-8111-111111111111',
++                        'c2222222-2222-4222-8222-222222222222');
++    DELETE FROM users
++     WHERE id IN ('c1111111-1111-4111-8111-111111111111',
++                  'c2222222-2222-4222-8222-222222222222');
++
++    SELECT count(*) INTO v_users_after FROM users;
++    SELECT count(*) INTO v_docs_after FROM documents;
++    RAISE NOTICE 'W3 after cleanup: users=%, documents=%', v_users_after, v_docs_after;
++
++    IF v_users_after <> v_users_before OR v_docs_after <> v_docs_before THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [row counts]: before users=%, documents=%; after users=%, documents=%',
++            v_users_before, v_docs_before, v_users_after, v_docs_after;
++    END IF;
++    RAISE NOTICE 'PASS [row counts unchanged]: users=%, documents=%',
++        v_users_after, v_docs_after;
++
++    RAISE NOTICE 'ALL W3 REGRESSION CHECKS PASSED';
++END
++$w3$;
++
++ROLLBACK;
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/run_w3_negative_control.sql" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/run_w3_negative_control.sql"
+new file mode 100644
+index 0000000..b1c4f5e
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/negative_control/run_w3_negative_control.sql"
+@@ -0,0 +1,70 @@
++-- ============================================================
++-- M2 W3 · run_w3_negative_control.sql
++-- 用途：负向对照。加载 negative_control/regression_wrong_expected.sql，
++--       该副本把“不存在 owner”的预期 SQLSTATE 故意改成 23505。
++-- 预期结果：实际 23503 与预期 23505 不符，脚本 RAISE 并以非零状态退出。
++-- 这不是主回归，不应作为验收通过依据。
++-- 用法：在项目根目录按 README.md 的“负向对照”命令执行；
++--       推荐用 run_w3_regression.ps1 以便失败时也清理临时 schema。
++-- ============================================================
++
++\set ON_ERROR_STOP on
++\pset pager off
++
++SET client_encoding = 'UTF8';
++
++\echo 'W3 regression: create isolated schema'
++CREATE SCHEMA :"w3_schema";
++SET search_path = :"w3_schema";
++
++\echo 'W3 regression: current_schema'
++SELECT current_schema() AS current_schema;
++
++\echo 'W3 regression: apply frozen migration 0001_init.sql'
++\ir ../../../0001_init.sql
++
++\echo 'W3 regression: pre-check empty isolated schema'
++DO $pre$
++DECLARE
++    v_schema text;
++    v_users  bigint;
++    v_docs   bigint;
++BEGIN
++    SELECT current_schema() INTO v_schema;
++    IF v_schema IS NULL OR v_schema = 'public' THEN
++        RAISE EXCEPTION 'W3 SETUP FAILED: current_schema=%, expected isolated schema', v_schema;
++    END IF;
++
++    SELECT count(*) INTO v_users FROM users;
++    SELECT count(*) INTO v_docs FROM documents;
++    IF v_users <> 0 OR v_docs <> 0 THEN
++        RAISE EXCEPTION 'W3 SETUP FAILED: isolated schema is not empty (users=%, documents=%)',
++            v_users, v_docs;
++    END IF;
++    RAISE NOTICE 'PASS [pre-check empty schema]: schema=%, users=0, documents=0', v_schema;
++END
++$pre$;
++
++\echo 'W3 negative control: run wrong-expected regression (expected failure)'
++\ir regression_wrong_expected.sql
++
++\echo 'W3 regression: post-rollback counts'
++DO $post$
++DECLARE
++    v_users bigint;
++    v_docs  bigint;
++BEGIN
++    SELECT count(*) INTO v_users FROM users;
++    SELECT count(*) INTO v_docs FROM documents;
++    IF v_users <> 0 OR v_docs <> 0 THEN
++        RAISE EXCEPTION 'W3 POST-ROLLBACK CHECK FAILED: users=%, documents=%', v_users, v_docs;
++    END IF;
++    RAISE NOTICE 'PASS [post-rollback counts]: users=0, documents=0';
++END
++$post$;
++
++\echo 'W3 regression: drop isolated schema'
++RESET search_path;
++DROP SCHEMA :"w3_schema" CASCADE;
++
++\echo 'W3 regression: DONE'
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/regression.sql" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/regression.sql"
+new file mode 100644
+index 0000000..2eb370c
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/regression.sql"
+@@ -0,0 +1,285 @@
++-- ============================================================
++-- M2 W3 · regression.sql
++-- 目的：在隔离 schema 中对冻结迁移 0001_init.sql 的约束做可复现回归。
++-- 前置：run_w3_regression.sql 已创建临时 schema、设置 search_path，
++--       并在同一会话中加载 migrations/0001_init.sql。
++-- 事务：本文件自行 BEGIN/ROLLBACK；不写 public，不依赖现有用户数据。
++--
++-- 覆盖（至少）：
++--   1. 两个合法 UUID 用户可以有同名文档标题
++--   2. 合法但不存在的 UUID owner -> 23503
++--   3. 标题 255 字符成功 / 256 字符 -> 22001
++--   4. 正文 262144 UTF-8 字节成功 / 262145 字节 -> 23514
++--   5. version = 0 -> 23514
++--   6. 前后行数一致，最终 ROLLBACK
++-- ============================================================
++
++SET client_encoding = 'UTF8';
++
++BEGIN;
++
++DO $w3$
++DECLARE
++    v_state           text;
++    v_message         text;
++    v_users_before    bigint;
++    v_docs_before     bigint;
++    v_users_after     bigint;
++    v_docs_after      bigint;
++    v_count           bigint;
++    v_distinct_owners bigint;
++    v_title_len       integer;
++    v_content_bytes   integer;
++BEGIN
++    -- --------------------------------------------------------
++    -- 0. 隔离 schema 必须为空，避免依赖现有数据
++    -- --------------------------------------------------------
++    SELECT count(*) INTO v_users_before FROM users;
++    SELECT count(*) INTO v_docs_before FROM documents;
++    RAISE NOTICE 'W3 baseline: users=%, documents=%', v_users_before, v_docs_before;
++
++    IF v_users_before <> 0 OR v_docs_before <> 0 THEN
++        RAISE EXCEPTION 'W3 SETUP FAILED: isolated schema is not empty (users=%, documents=%)',
++            v_users_before, v_docs_before;
++    END IF;
++
++    -- --------------------------------------------------------
++    -- 1. 两个合法 UUID 用户可以有同名标题
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO users (id, username, password_hash, created_at)
++        VALUES
++            ('c1111111-1111-4111-8111-111111111111',
++             'w3_alice',
++             'DB_TEST_ONLY_FAKE_HASH_W3_ALICE_NOT_ARGON2',
++             TIMESTAMPTZ '2026-11-01 00:00:00+00'),
++            ('c2222222-2222-4222-8222-222222222222',
++             'w3_bob',
++             'DB_TEST_ONLY_FAKE_HASH_W3_BOB_NOT_ARGON2',
++             TIMESTAMPTZ '2026-11-01 00:01:00+00');
++
++        INSERT INTO documents (id, owner_id, title, content, version, created_at, updated_at)
++        VALUES
++            ('d1111111-1111-4111-8111-111111111111',
++             'c1111111-1111-4111-8111-111111111111',
++             'W3 同名标题',
++             'alice 的内容',
++             1,
++             TIMESTAMPTZ '2026-11-01 00:10:00+00',
++             TIMESTAMPTZ '2026-11-01 00:10:00+00'),
++            ('d2222222-2222-4222-8222-222222222222',
++             'c2222222-2222-4222-8222-222222222222',
++             'W3 同名标题',
++             'bob 的内容',
++             1,
++             TIMESTAMPTZ '2026-11-01 00:11:00+00',
++             TIMESTAMPTZ '2026-11-01 00:11:00+00');
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state <> '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [same-title setup]: expected success, got % (%)',
++            v_state, v_message;
++    END IF;
++
++    SELECT count(*), count(DISTINCT owner_id)
++      INTO v_count, v_distinct_owners
++      FROM documents
++     WHERE title = 'W3 同名标题';
++
++    IF v_count <> 2 OR v_distinct_owners <> 2 THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [same title across two users]: rows=%, distinct owners=%',
++            v_count, v_distinct_owners;
++    END IF;
++    RAISE NOTICE 'PASS [same title across two users]: rows=2, owners=2';
++
++    -- --------------------------------------------------------
++    -- 2. 合法但不存在的 UUID owner -> 23503
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content)
++        VALUES ('99999999-9999-4999-8999-999999999999', 'W3 外键测试', '正文');
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: INSERT succeeded; expected 23503';
++    ELSIF v_state <> '23503' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [nonexistent owner]: expected 23503, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [nonexistent owner]: SQLSTATE 23503';
++
++    -- --------------------------------------------------------
++    -- 3a. 标题 255 字符 -> 成功
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (id, owner_id, title, content, version)
++        VALUES (
++            'd3333333-3333-4333-8333-333333333333',
++            'c1111111-1111-4111-8111-111111111111',
++            repeat('t', 255),
++            '标题边界正文',
++            1
++        );
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state <> '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 255]: expected success, got % (%)',
++            v_state, v_message;
++    END IF;
++
++    SELECT char_length(title) INTO v_title_len
++      FROM documents
++     WHERE id = 'd3333333-3333-4333-8333-333333333333';
++    IF v_title_len IS DISTINCT FROM 255 THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 255]: stored char_length=%, expected 255', v_title_len;
++    END IF;
++    RAISE NOTICE 'PASS [title 255]: INSERT succeeded, char_length=255';
++
++    -- --------------------------------------------------------
++    -- 3b. 标题 256 字符 -> 22001（VARCHAR(255) 长度错误）
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content)
++        VALUES ('c1111111-1111-4111-8111-111111111111', repeat('t', 256), '正文');
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 256]: INSERT succeeded; expected 22001';
++    ELSIF v_state <> '22001' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [title 256]: expected 22001, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [title 256]: SQLSTATE 22001';
++
++    -- --------------------------------------------------------
++    -- 4a. 正文 262144 UTF-8 字节 -> 成功
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (id, owner_id, title, content, version)
++        VALUES (
++            'd4444444-4444-4444-8444-444444444444',
++            'c1111111-1111-4111-8111-111111111111',
++            'W3 正文字节边界',
++            repeat('中', 87381) || 'a',
++            1
++        );
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state <> '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262144]: expected success, got % (%)',
++            v_state, v_message;
++    END IF;
++
++    SELECT octet_length(content) INTO v_content_bytes
++      FROM documents
++     WHERE id = 'd4444444-4444-4444-8444-444444444444';
++    IF v_content_bytes IS DISTINCT FROM 262144 THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262144]: stored bytes=%, expected 262144',
++            v_content_bytes;
++    END IF;
++    RAISE NOTICE 'PASS [content 262144]: INSERT succeeded, octet_length=262144';
++
++    -- --------------------------------------------------------
++    -- 4b. 正文 262145 字节 -> 23514
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content)
++        VALUES (
++            'c1111111-1111-4111-8111-111111111111',
++            'W3 正文超限',
++            repeat('中', 87381) || 'ab'
++        );
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262145]: INSERT succeeded; expected 23514';
++    ELSIF v_state <> '23514' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [content 262145]: expected 23514, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [content 262145]: SQLSTATE 23514';
++
++    -- --------------------------------------------------------
++    -- 5. version = 0 -> 23514
++    -- --------------------------------------------------------
++    v_state := '00000';
++    v_message := NULL;
++    BEGIN
++        INSERT INTO documents (owner_id, title, content, version)
++        VALUES ('c1111111-1111-4111-8111-111111111111', 'W3 版本零', '正文', 0);
++    EXCEPTION WHEN OTHERS THEN
++        GET STACKED DIAGNOSTICS
++            v_state = RETURNED_SQLSTATE,
++            v_message = MESSAGE_TEXT;
++    END;
++
++    IF v_state = '00000' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [version 0]: INSERT succeeded; expected 23514';
++    ELSIF v_state <> '23514' THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [version 0]: expected 23514, got % (%)',
++            v_state, v_message;
++    END IF;
++    RAISE NOTICE 'PASS [version 0]: SQLSTATE 23514';
++
++    -- --------------------------------------------------------
++    -- 6. 清理测试行，核对前后行数
++    -- --------------------------------------------------------
++    DELETE FROM documents
++     WHERE owner_id IN ('c1111111-1111-4111-8111-111111111111',
++                        'c2222222-2222-4222-8222-222222222222');
++    DELETE FROM users
++     WHERE id IN ('c1111111-1111-4111-8111-111111111111',
++                  'c2222222-2222-4222-8222-222222222222');
++
++    SELECT count(*) INTO v_users_after FROM users;
++    SELECT count(*) INTO v_docs_after FROM documents;
++    RAISE NOTICE 'W3 after cleanup: users=%, documents=%', v_users_after, v_docs_after;
++
++    IF v_users_after <> v_users_before OR v_docs_after <> v_docs_before THEN
++        RAISE EXCEPTION 'W3 CHECK FAILED [row counts]: before users=%, documents=%; after users=%, documents=%',
++            v_users_before, v_docs_before, v_users_after, v_docs_after;
++    END IF;
++    RAISE NOTICE 'PASS [row counts unchanged]: users=%, documents=%',
++        v_users_after, v_docs_after;
++
++    RAISE NOTICE 'ALL W3 REGRESSION CHECKS PASSED';
++END
++$w3$;
++
++ROLLBACK;
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/run_w3_regression.ps1" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/run_w3_regression.ps1"
+new file mode 100644
+index 0000000..3faecc3
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/run_w3_regression.ps1"
+@@ -0,0 +1,98 @@
++# M2 W3 isolated regression runner.
++# Creates a unique temporary schema, applies the frozen migration, runs the
++# selected regression entry, and always drops the schema in a finally block.
++#
++# Examples:
++#   .\run_w3_regression.ps1 -Database mce_practice
++#   .\run_w3_regression.ps1 -Database mce_practice -Entry run_w3_negative_control.sql
++#
++# The database must be an empty practice database. Do not point this at a
++# production database or one containing real user data.
++
++param(
++    [Parameter(Mandatory = $true)]
++    [string]$Database,
++
++    [string]$Entry = 'run_w3_regression.sql',
++
++    [string]$Psql = 'psql',
++
++    [string]$Schema = '',
++
++    [string]$LogFile = ''
++)
++
++$ErrorActionPreference = 'Stop'
++
++$stamp = Get-Date -Format 'yyyyMMdd_HHmmss_fff'
++$scriptDir = $PSScriptRoot
++$repoRoot = (Resolve-Path (Join-Path $scriptDir '..\..\..')).Path
++$entryPath = Join-Path $scriptDir $Entry
++
++if (-not (Test-Path -LiteralPath $entryPath -PathType Leaf)) {
++    Write-Host "ERROR: Entry file not found: $entryPath"
++    exit 2
++}
++
++$psqlCmd = Get-Command $Psql -ErrorAction SilentlyContinue
++if (-not $psqlCmd) {
++    Write-Host "ERROR: psql not found: $Psql. Add PostgreSQL bin to PATH or pass -Psql <path>."
++    exit 127
++}
++$psqlExe = $psqlCmd.Source
++if (-not $psqlExe) { $psqlExe = $psqlCmd.Path }
++
++if ([string]::IsNullOrWhiteSpace($Schema)) {
++    $Schema = "t_w3_${stamp}_$PID"
++}
++if ($Schema -notmatch '^[a-z0-9_]{1,50}$') {
++    Write-Host "ERROR: Schema contains invalid characters: $Schema"
++    exit 2
++}
++
++if ([string]::IsNullOrWhiteSpace($LogFile)) {
++    $logDir = Join-Path $repoRoot 'logs'
++    if (-not (Test-Path -LiteralPath $logDir)) {
++        New-Item -ItemType Directory -Path $logDir | Out-Null
++    }
++    $LogFile = Join-Path $logDir ("w3_regression_{0}_{1}.log" -f $stamp, $PID)
++} else {
++    $logDir = Split-Path -Parent $LogFile
++    if ($logDir -and -not (Test-Path -LiteralPath $logDir)) {
++        New-Item -ItemType Directory -Path $logDir | Out-Null
++    }
++}
++
++$psqlArgs = @(
++    '-X',
++    '-v', 'ON_ERROR_STOP=1',
++    '-d', $Database,
++    '-v', "w3_schema=$Schema",
++    '-L', $LogFile,
++    '-f', $entryPath
++)
++
++$exitCode = 0
++try {
++    & $psqlExe @psqlArgs
++    $exitCode = $LASTEXITCODE
++    if ($null -eq $exitCode) { $exitCode = 0 }
++}
++catch {
++    Write-Host "ERROR: $_"
++    $exitCode = 1
++}
++finally {
++    try {
++        $cleanup = 'DROP SCHEMA IF EXISTS "' + $Schema + '" CASCADE;'
++        & $psqlExe -X -v ON_ERROR_STOP=1 -d $Database -c $cleanup | Out-Null
++    }
++    catch {
++        Write-Warning "Could not drop schema $Schema : $_"
++    }
++}
++
++Write-Host "W3 schema: $Schema"
++Write-Host "W3 log: $LogFile"
++Write-Host "W3 exit code: $exitCode"
++exit $exitCode
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/run_w3_regression.sql" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/run_w3_regression.sql"
+new file mode 100644
+index 0000000..f6e1a65
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/migrations/checks/w3/run_w3_regression.sql"
+@@ -0,0 +1,77 @@
++-- ============================================================
++-- M2 W3 · run_w3_regression.sql
++-- 用途：创建一个隔离 schema，加载冻结迁移 0001_init.sql，
++--       执行 regression.sql，最后删除隔离 schema。
++-- 用法（推荐用 run_w3_regression.ps1 自动生成 schema 名并清理）：
++--   psql -X -v ON_ERROR_STOP=1 -d <练习库名> \
++--        -v w3_schema=t_w3_manual \
++--        -f migrations/checks/w3/run_w3_regression.sql
++--
++-- 注意：
++--   * 只操作 :"w3_schema" 指向的临时 schema，不写 public；
++--   * 0001_init.sql 自带 BEGIN/COMMIT，因此不能把它包进外层事务；
++--   * regression.sql 自带 BEGIN/ROLLBACK，夹具和检查数据最终回滚；
++--   * 失败时 psql 退出，可能留下临时 schema；用 PS 入口或
++--     migrations/cleanup_test_schemas.sql（t_% 前缀）清理。
++-- ============================================================
++
++\set ON_ERROR_STOP on
++\pset pager off
++
++SET client_encoding = 'UTF8';
++
++\echo 'W3 regression: create isolated schema'
++CREATE SCHEMA :"w3_schema";
++SET search_path = :"w3_schema";
++
++\echo 'W3 regression: current_schema'
++SELECT current_schema() AS current_schema;
++
++\echo 'W3 regression: apply frozen migration 0001_init.sql'
++\ir ../../0001_init.sql
++
++\echo 'W3 regression: pre-check empty isolated schema'
++DO $pre$
++DECLARE
++    v_schema text;
++    v_users  bigint;
++    v_docs   bigint;
++BEGIN
++    SELECT current_schema() INTO v_schema;
++    IF v_schema IS NULL OR v_schema = 'public' THEN
++        RAISE EXCEPTION 'W3 SETUP FAILED: current_schema=%, expected isolated schema', v_schema;
++    END IF;
++
++    SELECT count(*) INTO v_users FROM users;
++    SELECT count(*) INTO v_docs FROM documents;
++    IF v_users <> 0 OR v_docs <> 0 THEN
++        RAISE EXCEPTION 'W3 SETUP FAILED: isolated schema is not empty (users=%, documents=%)',
++            v_users, v_docs;
++    END IF;
++    RAISE NOTICE 'PASS [pre-check empty schema]: schema=%, users=0, documents=0', v_schema;
++END
++$pre$;
++
++\echo 'W3 regression: run assertions'
++\ir regression.sql
++
++\echo 'W3 regression: post-rollback counts'
++DO $post$
++DECLARE
++    v_users bigint;
++    v_docs  bigint;
++BEGIN
++    SELECT count(*) INTO v_users FROM users;
++    SELECT count(*) INTO v_docs FROM documents;
++    IF v_users <> 0 OR v_docs <> 0 THEN
++        RAISE EXCEPTION 'W3 POST-ROLLBACK CHECK FAILED: users=%, documents=%', v_users, v_docs;
++    END IF;
++    RAISE NOTICE 'PASS [post-rollback counts]: users=0, documents=0';
++END
++$post$;
++
++\echo 'W3 regression: drop isolated schema'
++RESET search_path;
++DROP SCHEMA :"w3_schema" CASCADE;
++
++\echo 'W3 regression: DONE'
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/\344\272\244\344\273\230\350\257\264\346\230\216.txt" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/\344\272\244\344\273\230\350\257\264\346\230\216.txt"
+new file mode 100644
+index 0000000..49d74b1
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/\344\272\244\344\273\230\350\257\264\346\230\216.txt"
+@@ -0,0 +1,132 @@
++M2_W3 交付说明
++==================================================
++
++姓名/学号：李子木 D10774023
++日期：2026-11-07
++任务：M2 W3｜迁移与约束的可复现回归
++基线：Git main 42e9e7fce4a76f41e69ee33f6f208383e8e04f44 的 baseline 快照
++压缩包：M2_W3_李子木_20261107.zip
++
++一、完成项
++1. 阅读并核对 baseline：
++   - migrations/0001_init.sql（未修改）
++   - migrations/checks/fixtures.sql、verify_constraints.sql、run_checks.sql（未修改）
++   - docs/DATABASE.md、docs/API.md 的字段规则
++   - 复核 SHA256清单.txt：62/62 匹配
++
++2. 复述既有 W2 的 11 例与事务回滚机制，写入 检查记录.md：
++   - 每条负例在嵌套 BEGIN/EXCEPTION 子事务中捕获 SQLSTATE；
++   - 未报错或错误码不同都显式 RAISE；
++   - run_checks.sql 用 BEGIN/ROLLBACK 丢弃夹具，成功零残留；
++   - M1 在 PostgreSQL 17.11 实测 11/11；这不是本人执行，未写成本人结果。
++
++3. 新增独立 W3 回归：
++   - migrations/checks/w3/regression.sql
++   - migrations/checks/w3/run_w3_regression.sql
++   - migrations/checks/w3/run_w3_regression.ps1
++   - migrations/checks/w3/negative_control/regression_wrong_expected.sql
++   - migrations/checks/w3/negative_control/run_w3_negative_control.sql
++   - migrations/checks/w3/negative_control/DIFF.txt
++   - W3_CHANGES.diff、W3_FILES.txt
++
++4. W3 覆盖的最低用例：
++   - 两个合法 UUID 用户可以有同名标题；
++   - 合法但不存在的 UUID owner 报 23503；
++   - 标题 255/256 字符边界（成功 / 22001）；
++   - 正文 262144/262145 UTF-8 字节边界（成功 / 23514）；
++   - version = 0 拒绝（23514）；
++   - 前后行数一致，最终 ROLLBACK；
++   - 负向对照：把预期码改成 23505 的副本应被断言检出。
++
++5. W3 隔离方式：
++   - 使用临时 schema（t_w3_*），SET search_path 只指向该 schema；
++   - 在该 schema 中加载原 0001_init.sql，不修改冻结迁移；
++   - 回归脚本自行 BEGIN/ROLLBACK，不依赖 public 或现有用户数据；
++   - PowerShell 入口在 finally 中清理临时 schema，失败也不留 schema。
++
++6. 静态检查：
++   - W3 SQL 为 UTF-8、无 BOM；
++   - regression.sql：1 个外层 BEGIN、1 个 ROLLBACK、7 个嵌套异常块、7 个 GET STACKED、8 个 PASS 通知；
++   - 入口 2 个 \ir、2 个内嵌 DO（pre/post）、无外层 BEGIN/COMMIT；
++   - PowerShell 入口语法解析 0 错误；
++   - 负向副本与主脚本的差异只有不存在 owner 的预期码两行。
++   - 入口在无 psql 时按预期退出 127（只验证失败路径，未执行 SQL）。
++
++二、未完成项（如实说明）
++- 本机没有 psql、PostgreSQL 服务或 Docker，W3 的所有 SQL 均未执行。
++- W3-1 至 W3-8 没有实际 SQLSTATE、成功/失败或行数结果。
++- 负向对照未执行，未观测到实际非零退出。
++- 没有真实 psql 终端输出；logs/00_environment.txt 是环境检查日志，不是 SQL 执行日志。
++- 不能声称 W3 验证通过、可重复或无残留。
++- 没有验证 API 的 owner 隔离、并发保存/409、HTTP 或 Rust 服务；W3 只验证数据库约束。
++- 未运行 Rust/Node 基线检查：W3 未修改这些文件；数据库集成测试需要 PostgreSQL，本机没有。
++- 没有把 M1 在 PostgreSQL 17.11 的 W2 实测写成本人执行。
++
++三、运行方法（本次未执行）
++依赖：PostgreSQL 17 系列、psql 在 PATH、PowerShell 5.1+、独立空练习库（UTF8）。
++在项目根目录执行：
++
++  .\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名>
++
++负向对照（预期非零退出）：
++
++  .\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名> -Entry negative_control\run_w3_negative_control.sql
++
++直接 psql（失败可能留下临时 schema，需手动清理）：
++
++  psql -X -v ON_ERROR_STOP=1 -d <练习库名> -v w3_schema=t_w3_manual -f migrations/checks/w3/run_w3_regression.sql
++
++说明：<练习库名> 是占位符，不是已执行的数据库名；本机未执行以上命令。
++
++四、本人操作与 AI 操作
++- 本人：提供下发包、姓名/学号和目标；需要在有 PostgreSQL 的环境中复跑，
++  并根据实际输出填写检查记录；需要用自己的话解释设计。
++- AI：读取包内文件、核对哈希、生成 W3 SQL/入口/文档草稿，执行静态检查和
++  本机环境检查；没有运行 SQL，没有安装或连接未经授权的数据库，没有上传/发送文件。
++- AI 工具：Claude Code（Cherry Studio 智能体），模型标识 deepseek-flash[1m]。
++- 姓名/学号沿用 W1/W2 交件中的 李子木 D10774023；如与实际不符，请本人修改。
++
++五、关键设计说明（供本人用自己的话复述）
++1. 为什么用临时 schema：
++   迁移是冻结的生产 schema；W3 不能修改它。临时 schema 让原迁移在隔离位置建表，
++   测试数据不碰 public 或现有用户数据；入口最后 DROP SCHEMA，失败时也清理。
++
++2. 怎么做“可复现”：
++   run_w3_regression.ps1 生成唯一 schema 名，加载原 0001_init.sql，再执行
++   regression.sql；regression.sql 自己 BEGIN/ROLLBACK，插入的测试行和同名标题
++   文档在事务内删除，最终回滚；入口在 ROLLBACK 后再查 users/documents 为 0。
++
++3. 为什么断言 SQLSTATE：
++   屏幕上出现错误不等于通过。每条负例捕获 RETURNED_SQLSTATE，与预期码比较；
++   未报错或码不同都 RAISE。这样能区分“目标约束触发”和“语法/类型/其他约束错误”。
++
++4. 负向对照的作用：
++   把不存在 owner 的预期码从 23503 改成 23505，实际仍是 23503，脚本必须失败。
++   这证明断言不是永远 PASS 的空壳；负向对照本身不是验收通过。
++
++5. W2 解释纠偏：
++   整数 99999 不是合法 UUID；对 UUID 列赋值常见 42804，比较常见 42883
++   （具体看语句）；字符串 '99999' 才是 22P02；合法但不存在的 UUID 才是 23503。
++   以上以实际 SQL 输出为准，本次未实测。
++
++六、压缩包内容
++M2_W3_李子木_20261107/
++  README.md（baseline + W3 运行说明）
++  检查记录.md
++  交付说明.txt
++  W3_CHANGES.diff
++  W3_FILES.txt
++  logs/00_environment.txt
++  migrations/checks/w3/regression.sql
++  migrations/checks/w3/run_w3_regression.sql
++  migrations/checks/w3/run_w3_regression.ps1
++  migrations/checks/w3/negative_control/regression_wrong_expected.sql
++  migrations/checks/w3/negative_control/run_w3_negative_control.sql
++  migrations/checks/w3/negative_control/DIFF.txt
++  baseline 的其余文件（未改动；不含 .env、.git、target、node_modules、真实密钥）
++
++七、交付前自检
++- 姓名/学号已填；没有把未运行项写成通过。
++- 未修改 migrations/0001_init.sql、W2 scripts、src/、frontend/、tests/。
++- W3 仅新增 migrations/checks/w3/ 和文档/日志/差异文件。
++- M1 的 W2 实测与本人 W3 未执行状态已分开写明。
+diff --git "a/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/\346\243\200\346\237\245\350\256\260\345\275\225.md" "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/\346\243\200\346\237\245\350\256\260\345\275\225.md"
+new file mode 100644
+index 0000000..41118de
+--- /dev/null
++++ "b/C:\\Users\\21991\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\system\\2026-10-19\\b63befc4-ea4d-451f-b689-1f2fe8300d71\\M2_W3_\346\235\216\345\255\220\346\234\250_20261107/\346\243\200\346\237\245\350\256\260\345\275\225.md"
+@@ -0,0 +1,170 @@
++# 检查记录
++
++- 日期：2026-11-07
++- 任务：M2 W3｜迁移与约束的可复现回归
++- 系统：Windows 11（10.0.26200）
++- Shell：Windows PowerShell 5.1
++- 基线：`baseline/`，Git main `42e9e7fce4a76f41e69ee33f6f208383e8e04f44` 快照
++- 练习库：**未建立、未连接**
++- 总体状态：**W3 SQL 未执行**（本机无 `psql`、PostgreSQL 服务或 Docker）
++
++> 本文件区分“已有代码/M1 证据”和“本次 W3 新增/执行结果”。没有实际 SQLSTATE，
++> 不能把本文件解释为 W3 已验证通过。
++
++## 1. 环境检查（实际执行）
++
++| 检查 | 实际命令 | 实际结果 |
++| --- | --- | --- |
++| psql 客户端 | `Get-Command psql -ErrorAction SilentlyContinue` | `NOT FOUND` |
++| pg_ctl | `Get-Command pg_ctl -ErrorAction SilentlyContinue` | `NOT FOUND` |
++| Docker | `Get-Command docker -ErrorAction SilentlyContinue` | `NOT FOUND` |
++| PostgreSQL 服务 | `Get-Service -Name 'postgresql*'` | 无匹配服务（`NONE`） |
++| 基线文档提到的安装目录 | `Test-Path 'D:\PostgreSQL\17\bin\psql.exe'`、`Test-Path 'C:\Program Files\PostgreSQL\17\bin\psql.exe'` | 均为 `False` |
++| `psql` 在 PATH | `cmd /c where psql` | `INFO: Could not find files for the given pattern(s).`，退出码 `1` |
++| WSL 备选环境 | `wsl -l -q` | 未安装 Linux 发行版，无法提供 PostgreSQL |
++| W3 入口无 psql 保护 | `.\migrations\checks\w3\run_w3_regression.ps1 -Database mce_w3_practice` | `ERROR: psql not found...`，退出码 `127`；未执行 SQL |
++| Rust 工具链 | `cargo --version`、`rustc --version` | `cargo 1.99.0`、`rustc 1.99.0`（W3 未使用） |
++| Node.js | `Get-Command node` | `NOT FOUND`（W3 不需要） |
++
++因此没有建立数据库连接；没有生成连接串、账号、密码或 `.env`。
++
++## 2. 下发包完整性（实际执行）
++
++读取 `SHA256清单.txt`，逐项计算 62 个文件的 SHA256：
++
++- 总数：62
++- 匹配：62
++- 不匹配：0
++
++基线关键文件哈希（与清单一致）：
++
++| 文件 | SHA256 |
++| --- | --- |
++| `baseline/migrations/0001_init.sql` | `15083085eeb5ded6930d468958c5a93cc7305b8bfe024a67c1430d3f7cb214dc` |
++| `baseline/migrations/checks/fixtures.sql` | `bca6106211b3182e7a4f8a856c1455e91067023cf45e0c6f562c47dae50f9100` |
++| `baseline/migrations/checks/verify_constraints.sql` | `ba51834d882b1cdbada12cbc6ce61f1aba7766e4f490803f3525e38cb02283e3` |
++| `baseline/migrations/checks/run_checks.sql` | `32b282421ab072ee43cf87782289065db99d118a113710c86da4bb57e1acc2ed` |
++
++## 3. 既有 W2 的 11 例与事务回滚（复述，不是本次执行）
++
++W2 的基线脚本：
++
++```powershell
++psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f migrations/0001_init.sql
++psql -X -v ON_ERROR_STOP=1 -d <练习库名> -f migrations/checks/run_checks.sql
++```
++
++`run_checks.sql` 的机制：
++
++1. `ON_ERROR_STOP` 使任一语句失败时 psql 退出。
++2. `BEGIN` 开启外层事务。
++3. `\ir fixtures.sql` 插入 3 个用户、6 篇文档。
++4. `\ir verify_constraints.sql` 执行 11 例。
++5. `ROLLBACK` 丢弃夹具和合法边界测试行，成功时业务表零残留。
++
++每条负例在嵌套 `BEGIN/EXCEPTION` 子事务中执行；用 `GET STACKED DIAGNOSTICS`
++捕获 `RETURNED_SQLSTATE`，与预期比较；未报错或错误码不同都显式 `RAISE EXCEPTION`，
++不使用 `WHEN OTHERS THEN NULL` 吞错。合法边界用真实 INSERT，随后删除/回滚。
++
++既有 11 例（W2 原有，M1 在 PostgreSQL 17.11 实测 11/11；**不是本人执行**）：
++
++| # | 用例 | 预期 SQLSTATE/结果 |
++| --- | --- | --- |
++| 1 | 重复 username | `23505` |
++| 2 | owner 为不存在但合法的 UUID | `23503` |
++| 3 | `version = 0` | `23514` |
++| 4 | `version = -1` | `23514` |
++| 5 | 正文 262145 字节 | `23514` |
++| 6 | 空标题 | `23514` |
++| 7 | 纯普通空格标题 | `23514` |
++| 8 | 全角空格标题 U+3000 | `23514` |
++| 9 | 标题 256 字符 | `22001`（VARCHAR 长度错误） |
++| 10 | 合法 255 字符标题 | 成功 INSERT |
++| 11 | 合法 262144 字节正文 | 成功 INSERT |
++
++说明：`0001_init.sql` 头注释和 `docs/DATABASE.md` §7.1 记录了 M1 的实测结果。
++本次 W3 只读取这些文件，**没有修改** `0001_init.sql`、`fixtures.sql`、
++`verify_constraints.sql` 或 `run_checks.sql`，也没有把 M1 的执行写成本人执行。
++
++## 4. W3 新增回归用例（逐项）
++
++W3 使用独立临时 schema，加载**原** `migrations/0001_init.sql`；不依赖 public
++或现存用户数据。脚本先确认 schema 为空，测试数据最终 `ROLLBACK`。
++
++| 编号 | 输入/动作 | 预期 | 实际 | 断言 |
++| --- | --- | --- | --- | --- |
++| W3-1 | 两个合法 UUID 用户 `w3_alice`/`w3_bob`，各插入一篇标题为 `W3 同名标题` 的文档 | 两行均成功；文档行数 2；不同 owner 数 2 | 未运行（无 `psql`/PostgreSQL） | 未判定 |
++| W3-2 | 插入 owner 为 `99999999-9999-4999-8999-999999999999` 的文档 | SQLSTATE `23503` | 未运行 | 未判定 |
++| W3-3 | 插入标题 `repeat('t',255)` 的文档 | INSERT 成功；`char_length = 255` | 未运行 | 未判定 |
++| W3-4 | 插入标题 `repeat('t',256)` 的文档 | SQLSTATE `22001` | 未运行 | 未判定 |
++| W3-5 | 插入正文 `repeat('中',87381)||'a'` 的文档 | INSERT 成功；`octet_length = 262144` | 未运行 | 未判定 |
++| W3-6 | 插入正文 `repeat('中',87381)||'ab'` 的文档 | SQLSTATE `23514` | 未运行 | 未判定 |
++| W3-7 | 插入 `version = 0` 的文档 | SQLSTATE `23514` | 未运行 | 未判定 |
++| W3-8 | 运行前后统计 `users`/`documents` | 均为 0，前后一致 | 未运行 | 未判定 |
++| W3-9 | 负向对照：把 W3-2 的预期码改成 `23505` 的副本 | 实际 `23503` 与预期不符，脚本非零退出 | 未运行 | 未判定 |
++| W3-10 | 主入口整体运行 | 退出码 0；10 个 PASS（含 pre/post）；最终 `ALL W3 REGRESSION CHECKS PASSED` | 未运行 | 未判定 |
++
++## 5. W3 脚本静态检查（实际执行）
++
++| 项目 | 结果 |
++| --- | --- |
++| 文件编码 | W3 SQL/README/记录均为 UTF-8、无 BOM |
++| `regression.sql` 美元引号 | `$w3$` 出现 2 次，配对完整 |
++| `regression.sql` 事务 | `BEGIN;` 1 处、`ROLLBACK;` 1 处 |
++| `regression.sql` 子事务 | 7 个嵌套 `BEGIN/EXCEPTION`，7 个 `GET STACKED DIAGNOSTICS` |
++| `regression.sql` 断言 | 8 个 `RAISE NOTICE 'PASS...'`（7 个用例 + 行数检查） |
++| `run_w3_regression.sql` | `ON_ERROR_STOP`、2 个 `\ir`、2 个内嵌 DO（pre/post）、无 `BEGIN/COMMIT` |
++| PowerShell 入口 | 语法解析 0 错误 |
++| 负向对照差异 | `DIFF.txt` 只显示不存在 owner 的预期码两行由 `23503` 改为 `23505` |
++| 基线文件对比 | 60 个 baseline 文件逐一 SHA256，与工作副本比较 | 仅 `README.md` 追加 W3 段；schema、W2 脚本、`src/`、`frontend/`、`tests/` 未变；新增 11 个 W3 文件 |
++| 敏感内容 | 检查工作副本 | 无 `.env`、真实密钥、真实密码、`.git`、`target`、`node_modules` |
++
++静态检查只能说明脚本结构和文本一致；不能证明约束在 PostgreSQL 中实际触发。
++
++## 6. 未执行项
++
++1. `migrations/0001_init.sql` 在练习库中的首次建表。
++2. `run_w3_regression.ps1` / `run_w3_regression.sql` 的主回归。
++3. W3-1 至 W3-8 的实际 SQLSTATE、成功/失败和行数结果。
++4. W3-9 负向对照的实际非零退出。
++5. 真实 psql 终端输出、退出码和 `logs/w3_regression_*.log`。
++6. Rust/Node 基线检查未运行：W3 未修改 Rust/前端文件；`cargo test` 的数据库
++   集成测试需要 PostgreSQL，本机没有。
++
++`logs/00_environment.txt` 是真实环境检查日志，不是 SQL 执行日志。
++
++## 7. W2 解释纠偏
++
++- 整数 `99999` 不是合法 UUID，不能用来测 UUID 外键。
++  - 对 UUID 列**赋值**（如 `INSERT ... VALUES (99999)`）是类型不匹配，常见 `42804`。
++  - 对 UUID 列**比较**（如 `WHERE owner_id = 99999`）具体错误码取决于语句，
++    常见 `42883`（没有 `uuid = integer` 运算符）。
++  - 字符串 `'99999'` 才会进入 UUID 输入解析，报 `22P02`。
++- 只有语法合法但未插入 `users` 的 UUID（如 `99999999-9999-4999-8999-999999999999`）
++  才会触发外键检查并得到 `23503`。
++- 以上按 SQL 语义说明；本机无 PostgreSQL，未能实测，具体以实际执行语句与输出为准。
++
++## 8. 不覆盖的范围
++
++- 数据库外键只验证 owner 存在，不验证 API 的 owner 隔离；后者必须在 repository
++  查询中限定 `owner_id`，本 W3 不涉及。
++- 不验证并发保存、乐观锁 `VERSION_CONFLICT`/409、HTTP 状态码、自动保存状态机。
++- 不声称覆盖完整 Unicode 空白；schema 的显式空白列表是兜底，应用层
++  `char::is_whitespace()` 才是完整判定。
++- 不把 M1 在 PostgreSQL 17.11 的 W2 实测写成本人执行。
++
++## 9. 复测命令（未执行）
++
++```powershell
++# 主回归（推荐）
++.\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名>
++
++# 负向对照（预期非零退出）
++.\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名> -Entry negative_control\run_w3_negative_control.sql
++
++# 直接 psql（失败可能留下 t_w3_* schema）
++psql -X -v ON_ERROR_STOP=1 -d <练习库名> -v w3_schema=t_w3_manual -f migrations/checks/w3/run_w3_regression.sql
++```
++
++执行后应保存 psql 原始输出到 `logs/`，并把本文件的“实际/断言”两列改为真实的
++SQLSTATE、行数和退出码；在完成之前保持“未运行/未判定”。

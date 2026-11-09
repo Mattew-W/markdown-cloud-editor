@@ -1,0 +1,132 @@
+M2_W3 交付说明
+==================================================
+
+姓名/学号：李子木 D10774023
+日期：2026-11-07
+任务：M2 W3｜迁移与约束的可复现回归
+基线：Git main 42e9e7fce4a76f41e69ee33f6f208383e8e04f44 的 baseline 快照
+压缩包：M2_W3_李子木_20261107.zip
+
+一、完成项
+1. 阅读并核对 baseline：
+   - migrations/0001_init.sql（未修改）
+   - migrations/checks/fixtures.sql、verify_constraints.sql、run_checks.sql（未修改）
+   - docs/DATABASE.md、docs/API.md 的字段规则
+   - 复核 SHA256清单.txt：62/62 匹配
+
+2. 复述既有 W2 的 11 例与事务回滚机制，写入 检查记录.md：
+   - 每条负例在嵌套 BEGIN/EXCEPTION 子事务中捕获 SQLSTATE；
+   - 未报错或错误码不同都显式 RAISE；
+   - run_checks.sql 用 BEGIN/ROLLBACK 丢弃夹具，成功零残留；
+   - M1 在 PostgreSQL 17.11 实测 11/11；这不是本人执行，未写成本人结果。
+
+3. 新增独立 W3 回归：
+   - migrations/checks/w3/regression.sql
+   - migrations/checks/w3/run_w3_regression.sql
+   - migrations/checks/w3/run_w3_regression.ps1
+   - migrations/checks/w3/negative_control/regression_wrong_expected.sql
+   - migrations/checks/w3/negative_control/run_w3_negative_control.sql
+   - migrations/checks/w3/negative_control/DIFF.txt
+   - W3_CHANGES.diff、W3_FILES.txt
+
+4. W3 覆盖的最低用例：
+   - 两个合法 UUID 用户可以有同名标题；
+   - 合法但不存在的 UUID owner 报 23503；
+   - 标题 255/256 字符边界（成功 / 22001）；
+   - 正文 262144/262145 UTF-8 字节边界（成功 / 23514）；
+   - version = 0 拒绝（23514）；
+   - 前后行数一致，最终 ROLLBACK；
+   - 负向对照：把预期码改成 23505 的副本应被断言检出。
+
+5. W3 隔离方式：
+   - 使用临时 schema（t_w3_*），SET search_path 只指向该 schema；
+   - 在该 schema 中加载原 0001_init.sql，不修改冻结迁移；
+   - 回归脚本自行 BEGIN/ROLLBACK，不依赖 public 或现有用户数据；
+   - PowerShell 入口在 finally 中清理临时 schema，失败也不留 schema。
+
+6. 静态检查：
+   - W3 SQL 为 UTF-8、无 BOM；
+   - regression.sql：1 个外层 BEGIN、1 个 ROLLBACK、7 个嵌套异常块、7 个 GET STACKED、8 个 PASS 通知；
+   - 入口 2 个 \ir、2 个内嵌 DO（pre/post）、无外层 BEGIN/COMMIT；
+   - PowerShell 入口语法解析 0 错误；
+   - 负向副本与主脚本的差异只有不存在 owner 的预期码两行。
+   - 入口在无 psql 时按预期退出 127（只验证失败路径，未执行 SQL）。
+
+二、未完成项（如实说明）
+- 本机没有 psql、PostgreSQL 服务或 Docker，W3 的所有 SQL 均未执行。
+- W3-1 至 W3-8 没有实际 SQLSTATE、成功/失败或行数结果。
+- 负向对照未执行，未观测到实际非零退出。
+- 没有真实 psql 终端输出；logs/00_environment.txt 是环境检查日志，不是 SQL 执行日志。
+- 不能声称 W3 验证通过、可重复或无残留。
+- 没有验证 API 的 owner 隔离、并发保存/409、HTTP 或 Rust 服务；W3 只验证数据库约束。
+- 未运行 Rust/Node 基线检查：W3 未修改这些文件；数据库集成测试需要 PostgreSQL，本机没有。
+- 没有把 M1 在 PostgreSQL 17.11 的 W2 实测写成本人执行。
+
+三、运行方法（本次未执行）
+依赖：PostgreSQL 17 系列、psql 在 PATH、PowerShell 5.1+、独立空练习库（UTF8）。
+在项目根目录执行：
+
+  .\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名>
+
+负向对照（预期非零退出）：
+
+  .\migrations\checks\w3\run_w3_regression.ps1 -Database <练习库名> -Entry negative_control\run_w3_negative_control.sql
+
+直接 psql（失败可能留下临时 schema，需手动清理）：
+
+  psql -X -v ON_ERROR_STOP=1 -d <练习库名> -v w3_schema=t_w3_manual -f migrations/checks/w3/run_w3_regression.sql
+
+说明：<练习库名> 是占位符，不是已执行的数据库名；本机未执行以上命令。
+
+四、本人操作与 AI 操作
+- 本人：提供下发包、姓名/学号和目标；需要在有 PostgreSQL 的环境中复跑，
+  并根据实际输出填写检查记录；需要用自己的话解释设计。
+- AI：读取包内文件、核对哈希、生成 W3 SQL/入口/文档草稿，执行静态检查和
+  本机环境检查；没有运行 SQL，没有安装或连接未经授权的数据库，没有上传/发送文件。
+- AI 工具：Claude Code（Cherry Studio 智能体），模型标识 deepseek-flash[1m]。
+- 姓名/学号沿用 W1/W2 交件中的 李子木 D10774023；如与实际不符，请本人修改。
+
+五、关键设计说明（供本人用自己的话复述）
+1. 为什么用临时 schema：
+   迁移是冻结的生产 schema；W3 不能修改它。临时 schema 让原迁移在隔离位置建表，
+   测试数据不碰 public 或现有用户数据；入口最后 DROP SCHEMA，失败时也清理。
+
+2. 怎么做“可复现”：
+   run_w3_regression.ps1 生成唯一 schema 名，加载原 0001_init.sql，再执行
+   regression.sql；regression.sql 自己 BEGIN/ROLLBACK，插入的测试行和同名标题
+   文档在事务内删除，最终回滚；入口在 ROLLBACK 后再查 users/documents 为 0。
+
+3. 为什么断言 SQLSTATE：
+   屏幕上出现错误不等于通过。每条负例捕获 RETURNED_SQLSTATE，与预期码比较；
+   未报错或码不同都 RAISE。这样能区分“目标约束触发”和“语法/类型/其他约束错误”。
+
+4. 负向对照的作用：
+   把不存在 owner 的预期码从 23503 改成 23505，实际仍是 23503，脚本必须失败。
+   这证明断言不是永远 PASS 的空壳；负向对照本身不是验收通过。
+
+5. W2 解释纠偏：
+   整数 99999 不是合法 UUID；对 UUID 列赋值常见 42804，比较常见 42883
+   （具体看语句）；字符串 '99999' 才是 22P02；合法但不存在的 UUID 才是 23503。
+   以上以实际 SQL 输出为准，本次未实测。
+
+六、压缩包内容
+M2_W3_李子木_20261107/
+  README.md（baseline + W3 运行说明）
+  检查记录.md
+  交付说明.txt
+  W3_CHANGES.diff
+  W3_FILES.txt
+  logs/00_environment.txt
+  migrations/checks/w3/regression.sql
+  migrations/checks/w3/run_w3_regression.sql
+  migrations/checks/w3/run_w3_regression.ps1
+  migrations/checks/w3/negative_control/regression_wrong_expected.sql
+  migrations/checks/w3/negative_control/run_w3_negative_control.sql
+  migrations/checks/w3/negative_control/DIFF.txt
+  baseline 的其余文件（未改动；不含 .env、.git、target、node_modules、真实密钥）
+
+七、交付前自检
+- 姓名/学号已填；没有把未运行项写成通过。
+- 未修改 migrations/0001_init.sql、W2 scripts、src/、frontend/、tests/。
+- W3 仅新增 migrations/checks/w3/ 和文档/日志/差异文件。
+- M1 的 W2 实测与本人 W3 未执行状态已分开写明。

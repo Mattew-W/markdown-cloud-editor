@@ -142,6 +142,19 @@ jobs:
             exit 1
           fi
 
+      - name: W3 隔离数据库约束回归
+        env:
+          PGPASSWORD: ci_test_password
+        run: |
+          schema="t_w3_ci_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          psql -X -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -v "w3_schema=$schema" -f migrations/checks/w3/run_w3_regression.sql > w3-regression.log 2>&1
+          cat w3-regression.log
+          grep -q 'ALL W3 REGRESSION CHECKS PASSED' w3-regression.log
+          remaining=$(psql -X -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM pg_namespace WHERE nspname = '$schema';")
+          test "$remaining" = 0
+
       # ---------- 必检 1/4：格式 ----------
       - name: cargo fmt --check
         run: cargo fmt --check
