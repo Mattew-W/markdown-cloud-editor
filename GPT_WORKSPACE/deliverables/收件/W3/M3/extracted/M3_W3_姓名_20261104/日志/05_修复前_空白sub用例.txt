@@ -1,0 +1,25 @@
+﻿cargo :    Compiling markdown-cloud-editor v0.1.0 (C:\Users\Lenovo\Desktop\M3_W3_交付\baseline)
+所在位置 行:1 字符: 59
++ ... \baseline"; cargo test --locked --lib 纯空白sub被拒绝 -- --nocapture > "C:\ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling ma...W3_交付\baseline):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.90s
+     Running unittests src\lib.rs (target\debug\deps\markdown_cloud_editor-1a2e4535037f543d.exe)
+
+running 1 test
+
+thread 'auth::token::tests::纯空白sub被拒绝' (24776) panicked at src\auth\token.rs:494:31:
+sub=" " 应被拒绝，实际解析出 " "
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test auth::token::tests::纯空白sub被拒绝 ... FAILED
+
+failures:
+
+failures:
+    auth::token::tests::纯空白sub被拒绝
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 85 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

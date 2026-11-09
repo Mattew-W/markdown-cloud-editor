@@ -142,8 +142,10 @@ pub fn decode_token(token: &str, secret: &str) -> Result<Claims, TokenError> {
     })?;
 
     // `sub` 承载用户 UUID，不允许为空串：空值会让"验签通过但查不到用户"。
+    // 纯空白（空格 / 制表符 / 全角空格）与空串同属"查不到用户"，一并拒绝；
+    // 只判空而不裁剪首尾，合法 id 原样返回，不做任何改写。
     // 最小校验，不做 UUID 格式解析（解析交给调用方，如 extractor.rs）。
-    if data.claims.sub.is_empty() {
+    if data.claims.sub.trim().is_empty() {
         return Err(TokenError::Invalid("sub 不能为空".to_owned()));
     }
 
@@ -395,5 +397,253 @@ mod tests {
         // `Duration::seconds` 在此处就会 panic，必须走 `try_seconds`。
         let res = issue_token("u1", "alice", SECRET, i64::MAX as u64);
         assert!(res.is_err(), "i64::MAX TTL 必须返回错误而非 panic");
+    }
+
+    // ---- M3 W3 新增：边界与错误分类回归 ----
+    //
+    // W3 验收点里已有覆盖的 4 项**不重复造例**：
+    //   - 签名正确但缺 exp → `签名正确但缺exp被拒绝`
+    //   - aud 错误 / 缺失   → `正确签名但aud错误被拒绝` / `签名正确但缺aud被拒绝`
+    //   - 空 sub            → `空sub被拒绝`
+    //   - u64::MAX / i64::MAX TTL 不 panic
+    //     → `ttl取u64max返回错误不panic` / `ttl取i64max返回错误不panic`
+    // 下面只补 W2 之后仍然缺的边界。
+
+    /// 与 `Claims` 同构但缺 `iss` 的载荷。
+    #[derive(Serialize)]
+    struct ClaimsNoIss {
+        sub: String,
+        username: String,
+        iat: i64,
+        exp: i64,
+        aud: String,
+    }
+
+    /// 与 `Claims` 同构但整体缺 `sub` 字段的载荷。
+    #[derive(Serialize)]
+    struct ClaimsNoSubField {
+        username: String,
+        iat: i64,
+        exp: i64,
+        iss: String,
+        aud: String,
+    }
+
+    #[test]
+    fn 同密钥hs384签名的token被拒绝() {
+        // 签名能被同一密钥验证，只有 header 的 alg 不是 HS256。
+        // 与 `算法降级攻击被阻断`（alg=none、无签名）不同：这条验证的是
+        // 「算法固定」，即 decode 不信任 header 里的 alg。
+        let now = Utc::now();
+        let claims = Claims {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: now.timestamp(),
+            exp: (now + Duration::hours(1)).timestamp(),
+            iss: ISSUER.to_owned(),
+            aud: AUDIENCE.to_owned(),
+        };
+        let token = encode(
+            &Header::new(Algorithm::HS384),
+            &claims,
+            &EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .expect("构造不应失败");
+
+        let err = decode_token(&token, SECRET).expect_err("非 HS256 的 token 必须被拒绝");
+        assert!(matches!(err, TokenError::Invalid(_)), "实际：{err:?}");
+    }
+
+    #[test]
+    fn 签名正确但缺iss被拒绝() {
+        // 与 `不同签发者的token被拒绝` 互补：那条是 iss 值不对，这条是字段整个缺失。
+        let now = Utc::now();
+        let payload = ClaimsNoIss {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: now.timestamp(),
+            exp: (now + Duration::hours(1)).timestamp(),
+            aud: AUDIENCE.to_owned(),
+        };
+        let token = sign(&payload);
+        let err = decode_token(&token, SECRET).expect_err("缺少 iss 的 token 必须被拒绝");
+        assert!(matches!(err, TokenError::Invalid(_)), "实际：{err:?}");
+    }
+
+    #[test]
+    fn 载荷缺sub字段被拒绝() {
+        // 与 `空sub被拒绝` 互补：那条 sub 存在但为空串，这条连字段都没有。
+        let now = Utc::now();
+        let payload = ClaimsNoSubField {
+            username: "alice".to_owned(),
+            iat: now.timestamp(),
+            exp: (now + Duration::hours(1)).timestamp(),
+            iss: ISSUER.to_owned(),
+            aud: AUDIENCE.to_owned(),
+        };
+        let token = sign(&payload);
+        let err = decode_token(&token, SECRET).expect_err("缺少 sub 字段的 token 必须被拒绝");
+        assert!(matches!(err, TokenError::Invalid(_)), "实际：{err:?}");
+    }
+
+    #[test]
+    fn 纯空白sub被拒绝() {
+        // W2 只拦了空串；纯空白（空格 / 制表符 / 全角空格）同样不是合法 user id，
+        // 下游按 sub 查用户会查不到，与空串属同一类问题。
+        for blank in [" ", "   ", "\t", "\u{3000}"] {
+            let (token, _) = issue_token(blank, "alice", SECRET, 3600).expect("签发不应失败");
+            match decode_token(&token, SECRET) {
+                Ok(claims) => panic!("sub={blank:?} 应被拒绝，实际解析出 {:?}", claims.sub),
+                Err(TokenError::Invalid(_)) => {}
+                Err(e) => panic!("sub={blank:?} 应返回 Invalid，实际：{e:?}"),
+            }
+        }
+        // 正常 sub 不受影响（首尾空格不裁剪，合法 id 原样透出）。
+        let (token, _) = issue_token("u1", "alice", SECRET, 3600).expect("签发不应失败");
+        let claims = decode_token(&token, SECRET).expect("正常 sub 不应被误伤");
+        assert_eq!(claims.sub, "u1");
+    }
+
+    #[test]
+    fn 过期且签名错误的token归类为签名无效() {
+        // 先验签、后判过期：伪造者拿不到密钥，不应因为改了 exp 就得到「已过期」
+        // 这个只有真 token 才该有的结论。分类顺序本身就是可观测行为。
+        let now = Utc::now();
+        let claims = Claims {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: (now - Duration::hours(2)).timestamp(),
+            exp: (now - Duration::hours(1)).timestamp(),
+            iss: ISSUER.to_owned(),
+            aud: AUDIENCE.to_owned(),
+        };
+        let other_secret = "9Zx#3mQ7!vB2@xR8&pL4@jK6^nT1*yH5=hG9+";
+        let token = encode(
+            &Header::new(Algorithm::HS256),
+            &claims,
+            &EncodingKey::from_secret(other_secret.as_bytes()),
+        )
+        .expect("构造不应失败");
+
+        let err = decode_token(&token, SECRET).expect_err("错误密钥签发必须失败");
+        assert!(
+            matches!(err, TokenError::Invalid(_)),
+            "过期 + 签名错误应归类为签名无效而非 Expired，实际：{err:?}"
+        );
+    }
+
+    #[test]
+    fn 过期判定按秒边界生效() {
+        // leeway = 0 时 exp 的比较是「严格小于 now 才算过期」：同一秒内 exp == now
+        // 仍有效，跨过这一秒即 Expired。两档写死，避免将来改成 `<=` 而无人发现。
+        let mut same_second_accepted = false;
+        for _ in 0..5 {
+            let now = Utc::now();
+            let claims = Claims {
+                sub: "u1".to_owned(),
+                username: "alice".to_owned(),
+                iat: (now - Duration::hours(1)).timestamp(),
+                exp: now.timestamp(),
+                iss: ISSUER.to_owned(),
+                aud: AUDIENCE.to_owned(),
+            };
+            match decode_token(&sign(&claims), SECRET) {
+                Ok(_) => {
+                    same_second_accepted = true;
+                    break;
+                }
+                // 构造与校验之间跨秒了：重取时间再试，不算失败。
+                Err(TokenError::Expired) => {}
+                Err(e) => panic!("意外错误：{e:?}"),
+            }
+        }
+        assert!(same_second_accepted, "exp == now 在同一秒内应仍被视为有效");
+
+        let now = Utc::now();
+        let claims = Claims {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: (now - Duration::hours(1)).timestamp(),
+            exp: now.timestamp() - 1,
+            iss: ISSUER.to_owned(),
+            aud: AUDIENCE.to_owned(),
+        };
+        let err = decode_token(&sign(&claims), SECRET).expect_err("已过期一秒必须失败");
+        assert!(matches!(err, TokenError::Expired), "实际：{err:?}");
+    }
+
+    #[test]
+    fn exp为零被判过期而非无效() {
+        // 1970 年的 exp：结构合法、签名合法，只是过期很久了——分类必须是 Expired。
+        let claims = Claims {
+            sub: "u1".to_owned(),
+            username: "alice".to_owned(),
+            iat: 0,
+            exp: 0,
+            iss: ISSUER.to_owned(),
+            aud: AUDIENCE.to_owned(),
+        };
+        let err = decode_token(&sign(&claims), SECRET).expect_err("exp=0 必须失败");
+        assert!(matches!(err, TokenError::Expired), "实际：{err:?}");
+    }
+
+    #[test]
+    fn ttl为0时签发不panic且当秒到期() {
+        // issue_token 只负责「不 panic、不溢出」，TTL 下限由 config.rs 的
+        // MIN_JWT_TTL_SECS（60 秒）把关。这里记录库层真实行为：TTL=0 返回 Ok，
+        // 过期时刻与签发时刻落在同一秒。
+        let before = Utc::now().timestamp();
+        let (_, expires_at) = issue_token("u1", "alice", SECRET, 0).expect("TTL=0 不应报错");
+        let after = Utc::now().timestamp();
+        assert!(
+            (before..=after).contains(&expires_at.timestamp()),
+            "TTL=0 的过期时刻应落在当前秒内，实际 {}",
+            expires_at.timestamp()
+        );
+    }
+
+    #[test]
+    fn ttl三道闸各自拦下越界值() {
+        // 闸 1：u64 → i64 溢出（TTL 连 i64 秒都装不下）。
+        let err = issue_token("u1", "alice", SECRET, u64::MAX).expect_err("u64::MAX 必须失败");
+        assert!(
+            matches!(&err, TokenError::Invalid(m) if m.contains("可表示范围")),
+            "实际：{err:?}"
+        );
+
+        // 闸 2：i64 秒装得下，但超出 chrono TimeDelta 的表示范围
+        // （TimeDelta 内部按毫秒存，上限 9_223_372_036_854_775 秒）。
+        let err = issue_token("u1", "alice", SECRET, 9_223_372_036_854_776)
+            .expect_err("TimeDelta 上限之外必须失败");
+        assert!(
+            matches!(&err, TokenError::Invalid(m) if m.contains("时间间隔")),
+            "实际：{err:?}"
+        );
+
+        // 闸 3：TimeDelta 能表示，但 now + TTL 超出 Utc 可表示范围（公元 262143 年）。
+        let err = issue_token("u1", "alice", SECRET, 9_000_000_000_000)
+            .expect_err("Utc 上限之外必须失败");
+        assert!(
+            matches!(&err, TokenError::Invalid(m) if m.contains("溢出")),
+            "实际：{err:?}"
+        );
+
+        // 边界内侧：8e12 秒（约 2.5 万年）仍可签发，与 Utc 上限留有约 2×10^11 秒余量。
+        assert!(
+            issue_token("u1", "alice", SECRET, 8_000_000_000_000).is_ok(),
+            "Utc 上限以内的极长 TTL 不应被误拒"
+        );
+    }
+
+    #[test]
+    fn 签发返回的过期时间与ttl一致() {
+        let (token, expires_at) = issue_token("u1", "alice", SECRET, 3600).expect("签发不应失败");
+        let claims = decode_token(&token, SECRET).expect("验签不应失败");
+        assert_eq!(
+            claims.exp,
+            expires_at.timestamp(),
+            "返回值与载荷的 exp 必须一致"
+        );
+        assert_eq!(claims.exp - claims.iat, 3600, "有效期实际秒数应等于 TTL");
     }
 }

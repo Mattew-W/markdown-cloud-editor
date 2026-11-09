@@ -1,0 +1,11 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.30s
+     Running tests\_w3_nbf_probe.rs (target\debug\deps\_w3_nbf_probe-658086ad2c2eef96.exe)
+
+running 1 test
+nbf 在未来 -> Ok(Claims { sub: "u1", username: "a", iat: 1793808214, exp: 1793811814, iss: "markdown-cloud-editor", aud: "markdown-cloud-editor-web" })
+iat 在未来 -> Ok(Claims { sub: "u1", username: "a", iat: 1793811814, exp: 1793815414, iss: "markdown-cloud-editor", aud: "markdown-cloud-editor-web" })
+test probe_nbf ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+exit_code=0

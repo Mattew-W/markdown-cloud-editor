@@ -1,0 +1,99 @@
+M3 W3 交付说明
+================
+
+一、基本信息（标【本人填写】的三项只写了占位，未编造）
+
+  姓名：      【本人填写】
+  学号：      【本人填写】
+  项目角色：  M3（职责：src/auth/password.rs、src/auth/token.rs 的认证纯逻辑与单元测试）
+  交件日期：  2026-11-04
+  基线提交：  main @ 42e9e7fce4a76f41e69ee33f6f208383e8e04f44（随包 baseline 快照）
+  实际 AI 工具：【本人填写 —— 本次会话在豆包桌面客户端（Windows）内完成，请按你实际使用的产品名填写】
+
+二、交付内容
+
+  源码/                完整可构建工程（基线 + 本次改动），已剔除 target/、.cargo/、.git/、.env
+    src/auth/password.rs   改动文件 1（新增 4 条用例 + verify 前置参数闸）
+    src/auth/token.rs      改动文件 2（新增 10 条用例 + 空白 sub 拦截）
+    其余目录与文件          与基线逐字节一致，未触碰
+  差异/password_rs.diff   对基线的 unified diff（python difflib 生成，本机无 git）
+  差异/token_rs.diff
+  日志/                    8 份真实命令输出（00 基线 → 08 观察项），末行带 exit_code
+  README.md                基线、如何运行、依赖、网络说明
+  检查记录.md               逐项「动作/输出/断言」+ 覆盖矩阵 + 未执行清单 + 已知局限
+  交付说明.txt              本文件
+
+三、验证结论（本机真实执行，命令与输出见 日志/）
+
+  cargo fmt --check                                   通过  exit_code=0
+  cargo test --locked                                 通过  86 passed / 0 failed；集成测试 9 条按基线 #[ignore] 跳过
+  cargo clippy --locked --all-targets -- -D warnings   通过  exit_code=0，无 warning
+  证书链/浏览器/数据库联调                           未执行（见下）
+
+  改动前基线为 72 个单元测试全绿；本次新增 14 条（token 10、password 4），合计 86 条。
+
+四、发现并修复的缺陷（两处最小修复，接口未变）
+
+  1. decode_token 只拦空串 sub，纯空白（空格/制表符/全角空格）能验签通过。
+     - 证据：日志/05_修复前_空白sub用例.txt（修复前 FAILED，实际解析出 " "）
+     - 修复：is_empty() → trim().is_empty()（不裁剪返回值，合法 sub 原样透出）
+     - 修复后：日志/02_cargo_test_all.txt 中 `纯空白sub被拒绝` 通过
+
+  2. verify_password 直接把 PHC 串交给 argon2，超大 m 参数会按参数申请内存。
+     - 证据：日志/06_修复前_参数OOM用例.txt（memory allocation of 4398046507008 bytes failed，
+       进程以 0xC0000409 终止，不是返回错误）
+     - 修复：调用 argon2 前先读 PHC 串的 m/t/p 并检查上限（1 GiB / 64 次 / 并行 8），
+       越界返回 IncompatibleParams（按 INTERFACES §1.3 映射 500，绝不混为 PasswordMismatch）
+     - 修复后：日志/02_cargo_test_all.txt 中 `损坏格式与不兼容参数都不得归类为密码不匹配` 通过（11/11）
+
+  说明：W2 的 JWT 两个缺陷修复（TTL checked 转换、空 sub 校验）与 M1 的 i64::MAX 边界修复
+  已在基线中，本次**不重复**，也未声称加固由本人完成。
+
+五、完成 / 未完成
+
+  已完成：
+    1. 先列已有测试与覆盖盲区（W3 要求的 4 项边界中 6 条用例已覆盖，逐条给出函数名与断言）；
+    2. 补充 W3 要求中真正缺失的边界，并对每一条断言具体错误变体（不只断言「失败」）；
+    3. 新建 password 侧 11 条改造串的分类矩阵，显式断言「不是 PasswordMismatch」；
+    4. 两处最小修复 + 修复前后证据；
+    5. fmt / test / clippy 三条门禁本机实跑通过；
+    6. 差异、日志、README、检查记录齐备；包内工程在无 target/、无 .cargo/ 状态下重建通过。
+
+  未完成（原因已写入 检查记录.md 未执行清单）：
+    1. 依赖真实 PostgreSQL 的 9 条集成用例：本机无数据库，按基线 #[ignore] 跳过，未执行；
+    2. --release 模式、Linux/macOS 平台：未执行；
+    3. 未向 GitHub 发 PR、未合并主项目（按任务要求交 M1 审核）。
+
+六、本人操作与 AI 操作（分开写清，不互相冒充）
+
+  AI（豆包）实际做的：
+    - 读基线（Cargo.toml、docs/INTERFACES.md §1、docs/API.md §7、auth/token.rs、auth/password.rs）；
+    - 编写 14 条新增单元测试、两处最小修复；
+    - 执行 fmt/test/clippy 与清理后重建验证，采集原始输出；
+    - 生成差异文件、README、检查记录、本说明与压缩包。
+
+  本人（我）实际做的 / 需本人补做的：
+    - 提供任务包与「打包放桌面」的交付要求，确认交付形态；
+    - 补填姓名、学号、实际 AI 工具名称（不编造，故留占位）；
+    - 审阅本交件后决定是否提交 M1；
+    - 任务提示词点名的两个概念题（JWT 验签与加密的区别、为何 i64::MAX 不能只依赖
+      checked_add_signed）由本人作答。检查记录 §11.5 只给了可核对的事实（TimeDelta 上限、
+      Utc 上限、三档闸的实际边界），不作为「我的回答」。
+
+七、打开与复现
+
+  解压后用 Rust 工程打开 源码/，或命令行：
+      cd 源码
+      cargo fmt --check
+      cargo test --locked
+      cargo clippy --locked --all-targets -- -D warnings
+  数据库用例需先设置 TEST_DATABASE_URL，再用 --ignored 运行（步骤见 README.md）。
+
+八、备注
+
+  - 压缩包名按任务模板写作 M3_W3_姓名_20261104.zip；「姓名」为占位，收到真实姓名后仅需改名，
+    包内内容不受影响（交付说明里已把姓名/学号留空待填）。
+  - 本机访问 crates.io 索引超时，验证时临时用了 rsproxy 镜像配置，该 .cargo/config.toml
+    未随包交付；包内工程在无该配置下已重新跑通（日志/07）。
+  - 未包含任何真实密钥、.env、.git、target、node_modules 或个人数据库；测试用密钥与密码
+    均为虚构常量。
