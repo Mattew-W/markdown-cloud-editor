@@ -1,0 +1,52 @@
+﻿cargo :    Compiling markdown-cloud-editor v0.1.0 (C:\Users\123\Doubao\chats\2026-11-01\new-chat\M4_W3\baseline)
+所在位置 行:1 字符: 311
++ ... .log; "fmt-check退出码: $LASTEXITCODE"; cargo test --locked 2>&1 | Tee-O ...
++                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling ma...M4_W3\baseline):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error[E0369]: binary operation `==` cannot be applied to type `Result<(), error::AppError>`
+   --> src\services\document_service.rs:324:9
+    |
+324 |         assert_eq!(validate_content(""), Ok(()));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |         |
+    |         Result<(), error::AppError>
+    |         Result<(), error::AppError>
+    |
+note: an implementation of `PartialEq` might be missing for `error::AppError`
+   --> src\error.rs:89:1
+    |
+ 89 | pub enum AppError {
+    | ^^^^^^^^^^^^^^^^^ must implement `PartialEq`
+help: consider annotating `error::AppError` with `#[derive(PartialEq)]`
+   --> src\error.rs:89:1
+    |
+ 89 + #[derive(PartialEq)]
+ 90 | pub enum AppError {
+    |
+
+error[E0369]: binary operation `==` cannot be applied to type `Result<i32, error::AppError>`
+   --> src\services\document_service.rs:363:9
+    |
+363 |         assert_eq!(validate_expected_version(i32::MAX), Ok(i32::MAX));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |         |
+    |         Result<i32, error::AppError>
+    |         Result<i32, error::AppError>
+    |
+note: an implementation of `PartialEq` might be missing for `error::AppError`
+   --> src\error.rs:89:1
+    |
+ 89 | pub enum AppError {
+    | ^^^^^^^^^^^^^^^^^ must implement `PartialEq`
+help: consider annotating `error::AppError` with `#[derive(PartialEq)]`
+   --> src\error.rs:89:1
+    |
+ 89 + #[derive(PartialEq)]
+ 90 | pub enum AppError {
+    |
+
+For more information about this error, try `rustc --explain E0369`.
+error: could not compile `markdown-cloud-editor` (lib test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

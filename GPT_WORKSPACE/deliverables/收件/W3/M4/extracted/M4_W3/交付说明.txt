@@ -1,0 +1,60 @@
+M4 W3 交付说明
+====================================
+
+【本人信息】（已由本人确认并填写）
+姓名：王海鑫
+学号：24406040107
+
+【实际 AI 工具】
+名称：豆包（Doubao）AI 助手
+形态：豆包办公（Windows 桌面端）
+工具链（实际采集，见 logs/1-env.log）：rustc 1.99.0、cargo 1.99.0；
+本机 shell 为 Windows PowerShell 5.1.26100.9711（以实际 $PSVersionTable 为准）。
+
+【任务边界】
+以主项目 src/services/document_service.rs 与已冻结 docs/API.md 为唯一正式行为基线，
+审计并补充 document 输入校验的纯逻辑单测。未改公开接口、未引入第二套 production 校验，
+未写 HTTP routes、repository、数据库、认证、CRUD、同步状态机；未发 PR、未覆盖主项目。
+
+【已完成项】
+1. 审计现有校验：validate_title / normalize_create_title / validate_content /
+   validate_expected_version 逻辑与 API 契约一致，确认无需修复生产代码。
+2. 在 document_service.rs 的 tests 模块新增 7 个测试：
+   - 创建显式空串 Some("") 拒绝（T3）
+   - 创建全角空白标题拒绝（T4 补全）
+   - 空正文通过（T7）
+   - 多字节正文 "中"×87381+"a" 恰好 262144 字节通过、加字节拒绝（T10）
+   - 正文不 trim、按原始字节计数（T11 佐证）
+   - 长标题带空白先 trim 再计数，255/256 边界（T12）
+   - expected_version 合法上界 i32::MAX 通过
+3. 覆盖对照表.md：把 reference/M4_W2 的 12 项映射到现有测试，已覆盖的注明位置、
+   缺口标注新增，实际结果逐项核对。
+4. 真实运行并保存日志：
+   - cargo fmt --check：退出码 0
+   - cargo test --locked：退出码 0，lib 单元测试 79 passed / 0 failed
+   - cargo clippy --locked --all-targets -- -D warnings：退出码 0
+5. 首次测试因对 AppError 误用 assert_eq!（缺 PartialEq）编译失败，
+   原始日志留档 logs/3-test-fail-01.log；改用 is_ok()/unwrap() 后通过，未改冻结类型。
+
+【未完成项 / 未执行】
+1. 本机无 PostgreSQL（无 psql、无 postgres 服务），tests/auth_db.rs 8 项与
+   health_api.rs 1 项数据库测试未执行（测试进程中为 ignored，非失败）；
+   “正文原样落库”的装配端到端验证随之未执行，仅以纯逻辑单测佐证。
+   复现：准备 PostgreSQL 17 测试库并设 TEST_DATABASE_URL，
+   运行 cargo test --locked --all-targets -- --ignored。
+2. 两个理解题：英文参考要点已附在“检查记录.md”第 5 节（AI 提供，非本人代答），
+   本人阅读理解并在签名行确认后掌握：
+   (1) 为什么显式空白不默认？
+   (2) 为什么要保存 trim 后的值？
+3. 历史说明：W1 练习由 Codex 代补，W2 已交独立 document_validation，
+   均不表述为本人独立重做；原件保留。
+
+【运行方法】（baseline/ 目录下）
+1. cargo fmt --check
+2. cargo test --locked
+3. cargo clippy --locked --all-targets -- -D warnings
+预期：退出码均为 0；lib 单元测试 79 passed；DB 测试在无数据库时 ignored。
+
+【打包约定】
+M4_W3_王海鑫_20261109.zip，已排除 target、.git、.cargo、.env、node_modules，
+不含真实凭据或个人数据库。
