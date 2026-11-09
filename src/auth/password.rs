@@ -207,13 +207,64 @@ pub fn hash_password(password: &str, params: &Argon2Params) -> Result<String, Pa
     Ok(hash.to_string())
 }
 
+/// 校验历史哈希时允许的最大参数。
+///
+/// 生产参数只会取 `Argon2Params::default()` 量级（m=19456 KiB, t=2, p=1），
+/// 这里的上限与之相差两三个数量级，用途是拦住「明显不是本系统产生」的
+/// 损坏记录——而不是放宽可接受的参数范围。
+///
+/// 为什么必须拦：`argon2` 会按哈希串里的 `m` 直接申请内存。一条 `m=4294967295`
+/// 的损坏记录等于要求 4.4 TB 内存，分配失败时进程**直接中止**（不是返回错误），
+/// 整个服务连同其他请求一起死；`t` 同理，上亿次迭代会把线程卡死数小时。
+const MAX_VERIFY_MEMORY_KIB: u32 = 1_048_576; // 1 GiB
+/// 迭代次数上限。
+const MAX_VERIFY_ITERATIONS: u32 = 64;
+/// 并行度上限。
+const MAX_VERIFY_PARALLELISM: u32 = 8;
+
+/// 校验哈希串自带的参数是否在可计算范围内。
+///
+/// # Errors
+/// 超出上限时返回 [`PasswordError::IncompatibleParams`]——这类记录是数据损坏，
+/// 按 `INTERFACES.md` §1.3 必须映射 500，绝不能表现为「密码错误」。
+///
+/// 这里直接读 PHC 串里的十进制字段，**不**构造 `argon2::Params`：
+/// `Params::try_from` 内部要算 `8 * p`，遇到 `p=4294967295` 时在 debug 下会触发
+/// 「attempt to multiply with overflow」panic（release 下静默回绕），
+/// 拿它做损坏数据的闸门并不可靠。
+fn ensure_verifiable(parsed: &PasswordHash<'_>) -> Result<(), PasswordError> {
+    if let Some(memory_kib) = parsed.params.get_decimal("m")
+        && memory_kib > MAX_VERIFY_MEMORY_KIB
+    {
+        return Err(PasswordError::IncompatibleParams(format!(
+            "哈希串内存参数 {memory_kib} KiB 超过校验上限 {MAX_VERIFY_MEMORY_KIB} KiB"
+        )));
+    }
+    if let Some(iterations) = parsed.params.get_decimal("t")
+        && iterations > MAX_VERIFY_ITERATIONS
+    {
+        return Err(PasswordError::IncompatibleParams(format!(
+            "哈希串迭代次数 {iterations} 超过校验上限 {MAX_VERIFY_ITERATIONS}"
+        )));
+    }
+    if let Some(parallelism) = parsed.params.get_decimal("p")
+        && parallelism > MAX_VERIFY_PARALLELISM
+    {
+        return Err(PasswordError::IncompatibleParams(format!(
+            "哈希串并行度 {parallelism} 超过校验上限 {MAX_VERIFY_PARALLELISM}"
+        )));
+    }
+    Ok(())
+}
+
 /// 校验输入密码是否与给定哈希串匹配。
 ///
 /// 关键行为：
 /// - 哈希串格式非法（含缺 salt / 缺 hash）→ [`PasswordError::InvalidHashFormat`]，
 ///   **不会** panic，也**不会**被误报成「密码错误」；
 /// - 哈希合法但密码不对 → [`PasswordError::PasswordMismatch`]；
-/// - 算法 / 版本 / 参数不兼容 → [`PasswordError::IncompatibleParams`]；
+/// - 算法 / 版本 / 参数不兼容（含参数越界到无法安全计算的程度）
+///   → [`PasswordError::IncompatibleParams`]；
 /// - 校验时 `password_hash` 的 `PasswordVerifier` 会**沿用哈希串自带的算法与参数**，
 ///   因此日后调整全局 Argon2id 参数也不会让历史哈希失效。
 ///
@@ -230,6 +281,11 @@ pub fn verify_password(password: &str, hash_str: &str) -> Result<(), PasswordErr
             "缺少 salt 或 hash 字段".to_string(),
         ));
     }
+
+    // 参数闸：先从 PHC 串读 m / t / p 并检查上限，再交给 argon2。
+    // 顺序很关键——argon2 内部按 m 申请内存，`m=4294967295` 会在申请 4.4 TB 时
+    // 直接中止进程，那时已经来不及返回任何错误。
+    ensure_verifiable(&parsed)?;
 
     // `PasswordVerifier` 的默认实现会读取 `parsed.algorithm` / `parsed.version` /
     // `parsed.params` 重新构造哈希实例，即沿用哈希串自带参数。
@@ -339,5 +395,178 @@ mod tests {
         assert_eq!(policy.check("abcdefgh").len(), 1);
         assert_eq!(policy.check("12345678").len(), 1);
         assert_eq!(policy.check("ab").len(), 2);
+    }
+
+    // ---- M3 W3 新增：错误分类不得混淆 ----
+    //
+    // W3 验收点「密码正确/错误、损坏 PHC 格式与不兼容参数不能混为 PasswordMismatch」
+    // 的回归矩阵。已有用例已覆盖：正确（`正确密码验证通过`）、错误
+    // （`错误密码被拒绝且归类为不匹配`）、损坏（`损坏哈希返回错误且不崩溃`）、
+    // 缺 salt/hash（`缺salt或缺hash的串报格式错而非密码错`）、
+    // 参数不合法（`非法参数被拒绝`，走的是 hash 侧）。
+    // 本节补 verify 侧的逐类断言：每一条都显式断言「不是 PasswordMismatch」。
+
+    /// 期望的错误类别，只用于把断言结果对到具体变体。
+    #[derive(Debug, Clone, Copy)]
+    enum Expected {
+        /// 哈希串本身损坏 / 无法解析。
+        Format,
+        /// 哈希串可解析，但算法参数与当前实现不兼容。
+        Params,
+    }
+
+    /// 用指定算法 / 版本 / 参数生成一个真实可验证的哈希串（仅测试用）。
+    fn hash_with(alg: Algorithm, version: Version, params: &Argon2Params) -> String {
+        let salt = SaltString::generate(&mut OsRng);
+        Argon2::new(alg, version, params.to_params().expect("测试参数应合法"))
+            .hash_password(DEMO_PASSWORD.as_bytes(), &salt)
+            .expect("测试哈希生成不应失败")
+            .to_string()
+    }
+
+    /// 把合法哈希串改造成指定损坏形态。
+    fn only_salt_and_params(good: &str) -> String {
+        let parts: Vec<&str> = good.split('$').collect();
+        // "$argon2id$v=19$m=...$salt$hash" → 去掉 hash 段
+        format!("${}${}${}", parts[1], parts[2], parts[3])
+    }
+
+    #[test]
+    fn 损坏格式与不兼容参数都不得归类为密码不匹配() {
+        let good =
+            hash_password(DEMO_PASSWORD, &Argon2Params::default()).expect("哈希生成不应失败");
+
+        let cases: Vec<(&str, String, Expected)> = vec![
+            // —— 损坏 PHC 格式：根本无法当作 PHC 串解析 ——
+            (
+                "盐含非法字符",
+                "$argon2id$v=19$m=19456,t=2,p=1$!!!!$aGVsbG8".to_owned(),
+                Expected::Format,
+            ),
+            (
+                "摘要 Base64 被截断",
+                good[..good.len() - 1].to_owned(),
+                Expected::Format,
+            ),
+            ("尾部多余字段", format!("{good}$extra"), Expected::Format),
+            (
+                "只有盐没有摘要",
+                only_salt_and_params(&good),
+                Expected::Format,
+            ),
+            (
+                "非 Argon2 前缀（bcrypt）",
+                "$2b$12$aaaaaaaaaaaaaaaaaaaaaeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_owned(),
+                Expected::Format,
+            ),
+            // —— 可解析但参数不兼容：参数值越界 ——
+            (
+                "内存参数 m=0",
+                good.replace("m=19456", "m=0"),
+                Expected::Params,
+            ),
+            ("迭代参数 t=0", good.replace("t=2", "t=0"), Expected::Params),
+            ("并行度 p=0", good.replace("p=1", "p=0"), Expected::Params),
+            // 超大 m 曾直接触发 4.4 TB 分配并中止进程，必须在校验前拦下。
+            (
+                "内存参数 m=4294967295",
+                good.replace("m=19456", "m=4294967295"),
+                Expected::Params,
+            ),
+            (
+                "迭代参数 t=4294967295",
+                good.replace("t=2", "t=4294967295"),
+                Expected::Params,
+            ),
+            (
+                "并行度 p=4294967295",
+                good.replace("p=1", "p=4294967295"),
+                Expected::Params,
+            ),
+        ];
+
+        for (name, hash, expected) in cases {
+            let err = verify_password(DEMO_PASSWORD, &hash)
+                .expect_err("损坏或不兼容的哈希串必须返回错误");
+            // 第一条断言：任何异常都不得冒充「密码错误」——那会让登录失败无法排查。
+            assert!(
+                !matches!(err, PasswordError::PasswordMismatch),
+                "{name} 不得归类为 PasswordMismatch，实际：{err:?}"
+            );
+            match expected {
+                Expected::Format => assert!(
+                    matches!(err, PasswordError::InvalidHashFormat(_)),
+                    "{name} 应归类为 InvalidHashFormat，实际：{err:?}"
+                ),
+                Expected::Params => assert!(
+                    matches!(err, PasswordError::IncompatibleParams(_)),
+                    "{name} 应归类为 IncompatibleParams，实际：{err:?}"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn 校验沿用哈希串自带的算法与版本() {
+        // 文档声称「校验沿用哈希串自带的 algorithm / version / params」。
+        // 这里用真实哈希（而非改标签）证明：argon2i / argon2d / 旧版本 v16 的哈希
+        // 用同一入口都能通过，且密码错时仍是 PasswordMismatch（不误报不兼容）。
+        let params = Argon2Params::default();
+        let variants = [
+            ("argon2id v19", Algorithm::Argon2id, Version::V0x13),
+            ("argon2i  v19", Algorithm::Argon2i, Version::V0x13),
+            ("argon2d  v19", Algorithm::Argon2d, Version::V0x13),
+            ("argon2id v16", Algorithm::Argon2id, Version::V0x10),
+        ];
+        for (name, alg, version) in variants {
+            let hash = hash_with(alg, version, &params);
+            assert!(
+                verify_password(DEMO_PASSWORD, &hash).is_ok(),
+                "{name} 的正确密码应验证通过，哈希：{hash}"
+            );
+            let err = verify_password("wrong-password-123", &hash).expect_err("错误密码必须失败");
+            assert!(
+                matches!(err, PasswordError::PasswordMismatch),
+                "{name} 的错误密码应归类为 PasswordMismatch，实际：{err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn 空密码与前后空格都归为密码不匹配() {
+        // 密码不做大小写折叠、不做首尾裁剪：差异一律是「不匹配」，不是格式/参数错误。
+        let hash =
+            hash_password(DEMO_PASSWORD, &Argon2Params::default()).expect("哈希生成不应失败");
+        for candidate in [
+            "",
+            " ",
+            " Correct-Horse-Battery-Staple",
+            "Correct-Horse-Battery-Staple ",
+            "correct-horse-battery-staple",
+        ] {
+            let err = verify_password(candidate, &hash).expect_err("非原密码必须失败");
+            assert!(
+                matches!(err, PasswordError::PasswordMismatch),
+                "{candidate:?} 应归类为 PasswordMismatch，实际：{err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn 版本标签与摘要不一致时表现为密码不匹配_已知局限() {
+        // 已知局限（非缺陷）：把真实 v19 哈希的版本标签改成 v16，摘要仍是 v19 算出的。
+        // 校验按标签用 v16 重算，得到的摘要与原摘要不同 → 表现为 PasswordMismatch。
+        // 这种「记录被改过」和「密码输错」在密码学上不可区分（没有额外校验位可查），
+        // 所以这里**记录**实际行为，不假装能识别出损坏。
+        let good =
+            hash_password(DEMO_PASSWORD, &Argon2Params::default()).expect("哈希生成不应失败");
+        let relabeled = good.replace("v=19", "v=16");
+        assert_ne!(relabeled, good, "替换应生效");
+        let err =
+            verify_password(DEMO_PASSWORD, &relabeled).expect_err("标签与摘要不一致时必须失败");
+        assert!(
+            matches!(err, PasswordError::PasswordMismatch),
+            "此类不一致只能表现为 PasswordMismatch，实际：{err:?}"
+        );
     }
 }

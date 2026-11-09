@@ -1,0 +1,17 @@
+﻿cargo :     Finished `test` profile [unoptimized + debuginfo] target(s) in 2.54s
+所在位置 行:1 字符: 196
++ ... TEXITCODE"; cargo test --locked --lib 损坏格式与不兼容参数都不得归类为密码不匹配 -- --noca ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 2.54s:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+     Running unittests src\lib.rs (target\debug\deps\markdown_cloud_editor-1a2e4535037f543d.exe)
+
+running 1 test
+memory allocation of 4398046507008 bytes failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `--lib`
+
+Caused by:
+  process didn't exit successfully: `C:\Users\Lenovo\Desktop\M3_W3_交付\baseline\target\debug\deps\markdown_cloud_editor-
+1a2e4535037f543d.exe 损坏格式与不兼容参数都不得归类为密码不匹配 --nocapture` (exit code: 0xc0000409, STATUS_STACK_BUFFER_OVERRUN)
