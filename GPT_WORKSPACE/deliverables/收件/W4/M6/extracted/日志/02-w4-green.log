@@ -1,0 +1,160 @@
+TAP version 13
+# Subtest: M6-01 两个账号同文档同会话：键不同、互不覆盖、各自读回自己的内容
+ok 1 - M6-01 两个账号同文档同会话：键不同、互不覆盖、各自读回自己的内容
+  ---
+  duration_ms: 1.6352
+  type: 'test'
+  ...
+# Subtest: M6-01 同账号同文档不同会话：分别存取，互不覆盖
+ok 2 - M6-01 同账号同文档不同会话：分别存取，互不覆盖
+  ---
+  duration_ms: 0.9184
+  type: 'test'
+  ...
+# Subtest: M6-01 同账号不同文档：分别存取，互不覆盖
+ok 3 - M6-01 同账号不同文档：分别存取，互不覆盖
+  ---
+  duration_ms: 0.2939
+  type: 'test'
+  ...
+# Subtest: M6-01 listDrafts 不泄露其他账号（含损坏项）
+ok 4 - M6-01 listDrafts 不泄露其他账号（含损坏项）
+  ---
+  duration_ms: 0.3113
+  type: 'test'
+  ...
+# Subtest: M6-01 键与记录身份不符（user/doc/session 三段逐一）判 corrupt，不接受伪造字段
+ok 5 - M6-01 键与记录身份不符（user/doc/session 三段逐一）判 corrupt，不接受伪造字段
+  ---
+  duration_ms: 0.5126
+  type: 'test'
+  ...
+# Subtest: M6-02 quota：真实 StorageAdapter 的 setItem 抛出 QuotaExceededError → reason/中文文案按契约
+ok 6 - M6-02 quota：真实 StorageAdapter 的 setItem 抛出 QuotaExceededError → reason/中文文案按契约
+  ---
+  duration_ms: 0.2349
+  type: 'test'
+  ...
+# Subtest: M6-02 unavailable：读取阶段抛 SecurityError 也归一化（不是只覆盖写入）
+ok 7 - M6-02 unavailable：读取阶段抛 SecurityError 也归一化（不是只覆盖写入）
+  ---
+  duration_ms: 0.898
+  type: 'test'
+  ...
+# Subtest: M6-02 corrupt：JSON 非法 → 契约文案；结构不符同样归 corrupt
+ok 8 - M6-02 corrupt：JSON 非法 → 契约文案；结构不符同样归 corrupt
+  ---
+  duration_ms: 0.2443
+  type: 'test'
+  ...
+# Subtest: M6-02 serialize：写入前校验失败（title 非字符串 / 版本非整数）→ reason/文案按契约
+ok 9 - M6-02 serialize：写入前校验失败（title 非字符串 / 版本非整数）→ reason/文案按契约
+  ---
+  duration_ms: 0.4561
+  type: 'test'
+  ...
+# Subtest: M6-02 camelCase 入参 → snake_case 落盘，且读回值可校验到最终返回值
+ok 10 - M6-02 camelCase 入参 → snake_case 落盘，且读回值可校验到最终返回值
+  ---
+  duration_ms: 0.3798
+  type: 'test'
+  ...
+# Subtest: M6-02 版本/修订非整数、日期不可解析或为数字 → corrupt（不显示 Invalid Date）
+ok 11 - M6-02 版本/修订非整数、日期不可解析或为数字 → corrupt（不显示 Invalid Date）
+  ---
+  duration_ms: 0.4405
+  type: 'test'
+  ...
+# Subtest: M6-03 只改 sessionId，其余两项相同 → 返回 false 且原记录完好
+ok 12 - M6-03 只改 sessionId，其余两项相同 → 返回 false 且原记录完好
+  ---
+  duration_ms: 0.2408
+  type: 'test'
+  ...
+# Subtest: M6-03 只改 localRevision，其余两项相同 → 返回 false 且原记录完好
+ok 13 - M6-03 只改 localRevision，其余两项相同 → 返回 false 且原记录完好
+  ---
+  duration_ms: 0.1073
+  type: 'test'
+  ...
+# Subtest: M6-03 只改 content，其余两项相同 → 返回 false 且原记录完好
+ok 14 - M6-03 只改 content，其余两项相同 → 返回 false 且原记录完好
+  ---
+  duration_ms: 0.0861
+  type: 'test'
+  ...
+# Subtest: M6-03 三项全部相等 → true 且确实删除
+ok 15 - M6-03 三项全部相等 → true 且确实删除
+  ---
+  duration_ms: 0.0823
+  type: 'test'
+  ...
+# Subtest: M6-03 clearSessionDrafts 只清本用户/本文档内已证实可弃的旧会话
+ok 16 - M6-03 clearSessionDrafts 只清本用户/本文档内已证实可弃的旧会话
+  ---
+  duration_ms: 0.3546
+  type: 'test'
+  ...
+# Subtest: M6-03 clearSessionDrafts 即使显式点名当前会话键，也不得误清当前会话
+ok 17 - M6-03 clearSessionDrafts 即使显式点名当前会话键，也不得误清当前会话
+  ---
+  duration_ms: 0.1777
+  type: 'test'
+  ...
+# Subtest: M6-03 待写缓冲：cancel 后清理，定时器到点不会复活旧草稿
+ok 18 - M6-03 待写缓冲：cancel 后清理，定时器到点不会复活旧草稿
+  ---
+  duration_ms: 0.2462
+  type: 'test'
+  ...
+# Subtest: M6-03 待写缓冲：先 flush 落盘再清理，同样不留残留
+ok 19 - M6-03 待写缓冲：先 flush 落盘再清理，同样不留残留
+  ---
+  duration_ms: 0.1306
+  type: 'test'
+  ...
+# Subtest: M6-04 窗口内连续三次输入只写一次，且落盘值为最后一次
+ok 20 - M6-04 窗口内连续三次输入只写一次，且落盘值为最后一次
+  ---
+  duration_ms: 0.1054
+  type: 'test'
+  ...
+# Subtest: M6-04 两个相邻窗口各写一次，最终存储保留两条最新内容
+ok 21 - M6-04 两个相邻窗口各写一次，最终存储保留两条最新内容
+  ---
+  duration_ms: 0.1357
+  type: 'test'
+  ...
+# Subtest: M6-04 flush 真正取消注入时钟的旧定时器，旧定时器不得提前写走新草稿
+ok 22 - M6-04 flush 真正取消注入时钟的旧定时器，旧定时器不得提前写走新草稿
+  ---
+  duration_ms: 0.1137
+  type: 'test'
+  ...
+# Subtest: M6-04 flushAll 落盘且不再触发第二次写入
+ok 23 - M6-04 flushAll 落盘且不再触发第二次写入
+  ---
+  duration_ms: 0.1102
+  type: 'test'
+  ...
+# Subtest: M6-04 classifyRestore 按 SYNC §9.7 三分支回归（标题与正文都必须比）
+ok 24 - M6-04 classifyRestore 按 SYNC §9.7 三分支回归（标题与正文都必须比）
+  ---
+  duration_ms: 0.107
+  type: 'test'
+  ...
+# Subtest: M6-04 协议字面量保持 ASCII（新增断言不引入非 ASCII 标识符）
+ok 25 - M6-04 协议字面量保持 ASCII（新增断言不引入非 ASCII 标识符）
+  ---
+  duration_ms: 0.2194
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 115.1883

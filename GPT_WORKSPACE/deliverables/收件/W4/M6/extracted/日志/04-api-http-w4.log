@@ -1,0 +1,119 @@
+TAP version 13
+# Subtest: apiFetch — 真实 HTTP 传输（127.0.0.1）
+    # Subtest: 真实请求路径为 /api/v1/documents（相对路径直传，本机解析）
+    ok 1 - 真实请求路径为 /api/v1/documents（相对路径直传，本机解析）
+      ---
+      duration_ms: 34.9011
+      type: 'test'
+      ...
+    # Subtest: Authorization 只在请求头，不进 URL
+    ok 2 - Authorization 只在请求头，不进 URL
+      ---
+      duration_ms: 6.6673
+      type: 'test'
+      ...
+    # Subtest: JSON 请求体被真实发送，并带 Content-Type: application/json
+    ok 3 - JSON 请求体被真实发送，并带 Content-Type: application/json
+      ---
+      duration_ms: 7.6917
+      type: 'test'
+      ...
+    # Subtest: 错误响应真实映射：400→InvalidInputError、404→NotFoundError、500→ServerError
+    ok 4 - 错误响应真实映射：400→InvalidInputError、404→NotFoundError、500→ServerError
+      ---
+      duration_ms: 12.3681
+      type: 'test'
+      ...
+    # Subtest: 429 RATE_LIMITED 在真实传输下保留 Retry-After 头
+    ok 5 - 429 RATE_LIMITED 在真实传输下保留 Retry-After 头
+      ---
+      duration_ms: 4.7064
+      type: 'test'
+      ...
+    # Subtest: 九类 error.code 在真实传输下全部映射到对应错误类
+    ok 6 - 九类 error.code 在真实传输下全部映射到对应错误类
+      ---
+      duration_ms: 28.9734
+      type: 'test'
+      ...
+    # Subtest: 409 VERSION_CONFLICT 在真实传输下携带 serverVersion（两种 409 不混淆）
+    ok 7 - 409 VERSION_CONFLICT 在真实传输下携带 serverVersion（两种 409 不混淆）
+      ---
+      duration_ms: 4.9055
+      type: 'test'
+      ...
+    # Subtest: 409 VERSION_CONFLICT 缺 server_version → ProtocolError，不编造版本
+    ok 8 - 409 VERSION_CONFLICT 缺 server_version → ProtocolError，不编造版本
+      ---
+      duration_ms: 5.5381
+      type: 'test'
+      ...
+    # Subtest: DELETE 的 expected_version 走查询参数，不进请求体
+    ok 9 - DELETE 的 expected_version 走查询参数，不进请求体
+      ---
+      duration_ms: 3.1872
+      type: 'test'
+      ...
+    # Subtest: 返回 JSON 响应头 + 不完整正文后断开连接 → NetworkError
+    ok 10 - 返回 JSON 响应头 + 不完整正文后断开连接 → NetworkError
+      ---
+      duration_ms: 37.1426
+      type: 'test'
+      ...
+    # Subtest: 成功（200）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+    ok 11 - 成功（200）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+      ---
+      duration_ms: 4.413
+      type: 'test'
+      ...
+    # Subtest: 错误（400）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+    ok 12 - 错误（400）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+      ---
+      duration_ms: 4.0069
+      type: 'test'
+      ...
+    # Subtest: 恶意畸形 JSON（Content-Type: application/json）→ ProtocolError
+    ok 13 - 恶意畸形 JSON（Content-Type: application/json）→ ProtocolError
+      ---
+      duration_ms: 3.7755
+      type: 'test'
+      ...
+    # Subtest: 错误响应声明 JSON 但内容损坏 → ProtocolError
+    ok 14 - 错误响应声明 JSON 但内容损坏 → ProtocolError
+      ---
+      duration_ms: 5.1477
+      type: 'test'
+      ...
+    # Subtest: 非 JSON 错误响应（text/html 错误页）→ ApiError，保留 status，不把 HTML 当 JSON 解析
+    ok 15 - 非 JSON 错误响应（text/html 错误页）→ ApiError，保留 status，不把 HTML 当 JSON 解析
+      ---
+      duration_ms: 3.7118
+      type: 'test'
+      ...
+    # Subtest: 204 真实传输返回 null（不解析正文）
+    ok 16 - 204 真实传输返回 null（不解析正文）
+      ---
+      duration_ms: 2.6087
+      type: 'test'
+      ...
+    # Subtest: 连接被拒（端口无服务监听）→ NetworkError
+    ok 17 - 连接被拒（端口无服务监听）→ NetworkError
+      ---
+      duration_ms: 2.3976
+      type: 'test'
+      ...
+    1..17
+ok 1 - apiFetch — 真实 HTTP 传输（127.0.0.1）
+  ---
+  duration_ms: 173.7128
+  type: 'suite'
+  ...
+1..1
+# tests 17
+# suites 1
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 296.129

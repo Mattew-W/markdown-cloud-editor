@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web-based Markdown Editor with Cloud Sync</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2317365D'/%3E%3Ctext x='8' y='12' font-size='10' fill='white' text-anchor='middle' font-family='sans-serif'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="vendor/marked/marked.min.js"></script>
+  <script src="vendor/dompurify/purify.min.js"></script>
+</head>
+<body>
+  <!-- 顶部主导航 -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-title">Markdown 云同步编辑器</span>
+    </div>
+    
+    <div class="doc-header-center">
+      <input
+        type="text"
+        id="docTitle"
+        class="doc-title-input"
+        placeholder="未命名文档"
+        maxlength="255"
+        autocomplete="off"
+        aria-label="文档标题"
+      >
+      <div id="syncBadge" class="sync-badge badge-synced" aria-live="polite">已同步</div>
+    </div>
+
+    <div class="header-actions">
+      <button id="btnNewDoc" class="btn btn-primary" type="button">＋ 新建文档</button>
+      <button id="btnSaveNow" class="btn" type="button">保存</button>
+      <button id="btnDeleteDoc" class="btn btn-danger" type="button">删除</button>
+      <span id="userInfo" class="user-info">未登录</span>
+      <button id="btnAuthToggle" class="btn" type="button">登录</button>
+    </div>
+  </header>
+
+  <!-- 主体工作区 -->
+  <main class="app-main">
+    <!-- 左侧文档列表 -->
+    <aside class="doc-list" aria-label="文档列表">
+      <div class="doc-list-header">
+        <h2 class="doc-list-title">我的文档</h2>
+        <span id="docCount" class="doc-count">0 篇</span>
+      </div>
+      <ul id="docList" class="doc-list-items">
+        <li class="doc-item placeholder">正在加载文档列表…</li>
+      </ul>
+    </aside>
+
+    <!-- 编辑器分栏 -->
+    <section class="editor-pane">
+      <div class="pane-toolbar">
+        <span class="pane-title">Markdown 编辑</span>
+        <div class="pane-stats">
+          <span id="statChars">0 字符</span>
+        </div>
+      </div>
+      <textarea
+        id="docContent"
+        class="doc-content"
+        placeholder="在此输入 Markdown 正文……"
+        spellcheck="false"
+        aria-label="Markdown 正文输入区"
+      ></textarea>
+    </section>
+
+    <!-- 实时安全预览分栏 -->
+    <section class="preview-pane">
+      <div class="pane-toolbar">
+        <span class="pane-title">实时安全预览</span>
+        <span class="preview-badge">DOMPurify 净化已启用</span>
+      </div>
+      <div id="preview" class="preview-content"></div>
+    </section>
+  </main>
+
+  <!-- 底部状态栏 -->
+  <footer class="status-bar">
+    <span id="statusText" class="status-text" aria-live="polite">系统就绪</span>
+    <span id="docInfo" class="doc-info">版本: -</span>
+  </footer>
+
+  <!-- 认证弹窗 (登录 / 注册) -->
+  <div id="authModal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="authModalTitle">用户登录</h3>
+        <button id="btnAuthClose" class="modal-close" type="button">×</button>
+      </div>
+      <form id="authForm" class="modal-body">
+        <div class="form-group">
+          <label for="authUsername">用户名</label>
+          <input type="text" id="authUsername" required autocomplete="username" placeholder="3-32 字符，字母/数字/下划线">
+        </div>
+        <div class="form-group">
+          <label for="authPassword">密码</label>
+          <input type="password" id="authPassword" required autocomplete="current-password" placeholder="12-128 字节安全密码">
+        </div>
+        <div id="authError" class="form-error hidden"></div>
+        <div class="form-actions">
+          <button type="submit" id="btnAuthSubmit" class="btn btn-primary">登 录</button>
+          <button type="button" id="btnAuthSwitch" class="btn btn-link">没有账号？去注册</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 版本冲突解决弹窗 (docs/SYNC.md §3) -->
+  <div id="conflictModal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 style="color:var(--danger, #c53030);">⚠️ 检测到云端版本冲突</h3>
+      </div>
+      <div class="modal-body">
+        <p>其他设备或会话已向云端提交了更新（云端版本: <strong id="serverVersionText"></strong>，本地基准: <strong id="localVersionText"></strong>）。</p>
+        <p>为避免覆盖他人工作，请选择解决方案：</p>
+        <div class="conflict-actions">
+          <button id="btnConflictReload" class="btn btn-primary" type="button">重新载入云端最新版本 (推荐)</button>
+          <button id="btnConflictOverwrite" class="btn btn-danger" type="button">强制以本地内容覆盖云端</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 草稿恢复确认条 (docs/SYNC.md §4) -->
+  <div id="draftBanner" class="draft-banner hidden">
+    <span>⚠️ 检测到当前文档存在未提交的本地离线草稿（记录于 <span id="draftTimestamp"></span>）</span>
+    <div class="draft-banner-actions">
+      <button id="btnRestoreDraft" class="btn btn-sm btn-primary" type="button">恢复草稿</button>
+      <button id="btnDiscardDraft" class="btn btn-sm" type="button">丢弃草稿</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

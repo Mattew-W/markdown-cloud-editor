@@ -1,0 +1,157 @@
+TAP version 13
+# Subtest: apiFetch — 真实 HTTP 传输（127.0.0.1）
+    # Subtest: 真实请求路径为 /api/v1/documents（相对路径直传，本机解析）
+    ok 1 - 真实请求路径为 /api/v1/documents（相对路径直传，本机解析）
+      ---
+      duration_ms: 38.3753
+      type: 'test'
+      ...
+    # Subtest: Authorization 只在请求头，不进 URL
+    ok 2 - Authorization 只在请求头，不进 URL
+      ---
+      duration_ms: 8.605
+      type: 'test'
+      ...
+    # Subtest: JSON 请求体被真实发送，并带 Content-Type: application/json
+    ok 3 - JSON 请求体被真实发送，并带 Content-Type: application/json
+      ---
+      duration_ms: 9.6468
+      type: 'test'
+      ...
+    # Subtest: 错误响应真实映射：400→InvalidInputError、404→NotFoundError、500→ServerError
+    ok 4 - 错误响应真实映射：400→InvalidInputError、404→NotFoundError、500→ServerError
+      ---
+      duration_ms: 14.4137
+      type: 'test'
+      ...
+    # Subtest: 429 RATE_LIMITED 在真实传输下保留 Retry-After 头
+    ok 5 - 429 RATE_LIMITED 在真实传输下保留 Retry-After 头
+      ---
+      duration_ms: 4.8495
+      type: 'test'
+      ...
+    # Subtest: 九类 error.code 在真实传输下全部映射到对应错误类
+    ok 6 - 九类 error.code 在真实传输下全部映射到对应错误类
+      ---
+      duration_ms: 34.5067
+      type: 'test'
+      ...
+    # Subtest: 409 VERSION_CONFLICT 在真实传输下携带 serverVersion（两种 409 不混淆）
+    ok 7 - 409 VERSION_CONFLICT 在真实传输下携带 serverVersion（两种 409 不混淆）
+      ---
+      duration_ms: 4.2922
+      type: 'test'
+      ...
+    # Subtest: 409 VERSION_CONFLICT 缺 server_version → ProtocolError，不编造版本
+    ok 8 - 409 VERSION_CONFLICT 缺 server_version → ProtocolError，不编造版本
+      ---
+      duration_ms: 4.7155
+      type: 'test'
+      ...
+    # Subtest: DELETE 的 expected_version 走查询参数，不进请求体
+    ok 9 - DELETE 的 expected_version 走查询参数，不进请求体
+      ---
+      duration_ms: 3.8235
+      type: 'test'
+      ...
+    # Subtest: 返回 JSON 响应头 + 不完整正文后断开连接 → NetworkError
+    ok 10 - 返回 JSON 响应头 + 不完整正文后断开连接 → NetworkError
+      ---
+      duration_ms: 45.6747
+      type: 'test'
+      ...
+    # Subtest: 成功（200）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+    not ok 11 - 成功（200）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+      ---
+      duration_ms: 4.4331
+      type: 'test'
+      location: 'C:\\Users\\ROG\\chats\\2026-11-11\\new-chat\\work\\package\\M6_W4_吴泽佳_20261111\\mutation\\frontend\\js\\tests\\api.http.test.js:385:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        超时定时器必须仍然有效（未被提前清除）
+        
+        false !== true
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///C:/Users/ROG/chats/2026-11-11/new-chat/work/package/M6_W4_%E5%90%B4%E6%B3%BD%E4%BD%B3_20261111/mutation/frontend/js/tests/api.http.test.js:415:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: 错误（400）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+    not ok 12 - 错误（400）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+      ---
+      duration_ms: 3.9592
+      type: 'test'
+      location: 'C:\\Users\\ROG\\chats\\2026-11-11\\new-chat\\work\\package\\M6_W4_吴泽佳_20261111\\mutation\\frontend\\js\\tests\\api.http.test.js:420:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        超时定时器必须仍然有效（未被提前清除）
+        
+        false !== true
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///C:/Users/ROG/chats/2026-11-11/new-chat/work/package/M6_W4_%E5%90%B4%E6%B3%BD%E4%BD%B3_20261111/mutation/frontend/js/tests/api.http.test.js:444:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: 恶意畸形 JSON（Content-Type: application/json）→ ProtocolError
+    ok 13 - 恶意畸形 JSON（Content-Type: application/json）→ ProtocolError
+      ---
+      duration_ms: 4.4667
+      type: 'test'
+      ...
+    # Subtest: 错误响应声明 JSON 但内容损坏 → ProtocolError
+    ok 14 - 错误响应声明 JSON 但内容损坏 → ProtocolError
+      ---
+      duration_ms: 3.9488
+      type: 'test'
+      ...
+    # Subtest: 非 JSON 错误响应（text/html 错误页）→ ApiError，保留 status，不把 HTML 当 JSON 解析
+    ok 15 - 非 JSON 错误响应（text/html 错误页）→ ApiError，保留 status，不把 HTML 当 JSON 解析
+      ---
+      duration_ms: 3.5757
+      type: 'test'
+      ...
+    # Subtest: 204 真实传输返回 null（不解析正文）
+    ok 16 - 204 真实传输返回 null（不解析正文）
+      ---
+      duration_ms: 2.7656
+      type: 'test'
+      ...
+    # Subtest: 连接被拒（端口无服务监听）→ NetworkError
+    ok 17 - 连接被拒（端口无服务监听）→ NetworkError
+      ---
+      duration_ms: 2.9558
+      type: 'test'
+      ...
+    1..17
+not ok 1 - apiFetch — 真实 HTTP 传输（127.0.0.1）
+  ---
+  duration_ms: 196.7896
+  type: 'suite'
+  location: 'C:\\Users\\ROG\\chats\\2026-11-11\\new-chat\\work\\package\\M6_W4_吴泽佳_20261111\\mutation\\frontend\\js\\tests\\api.http.test.js:165:1'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 17
+# suites 1
+# pass 15
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 335.8923

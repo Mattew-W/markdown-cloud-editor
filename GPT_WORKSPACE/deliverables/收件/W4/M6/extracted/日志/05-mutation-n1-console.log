@@ -1,0 +1,21 @@
+副本 api.js SHA256 = 089CC0E525192F06E9AC7F09034175C921A43C8A3F11CB61D55D16C8F8558AAD
+源   api.js SHA256 = 089CC0E525192F06E9AC7F09034175C921A43C8A3F11CB61D55D16C8F8558AAD
+锚点命中次数 = 1（必须为 1，否则停止）
+注入位置：js/api.js 第 273 行附近（锚点后 1 行）
+注入后的代码行：
+    // 【W4 阶段定向变异 N1】只让正文读取阶段失去超时保护：fetch 已返回即清定时器
+    if (timerId !== null) { timers.clearTimeout(timerId); timerId = null; }
+变异后 api.js SHA256 = 3353A06198161316957A45D29754BC6C7E297C7910D8CB0FFE6EBBD4956C85B0
+
+[7mnot ok[0m 1 - apiFetch — 真实 HTTP 传输（127.0.0.1）
+[7m# tests[0m 17
+[7m# pass[0m 15
+[7m# fail[0m 2
+EXIT 变异后目标用例 = 1
+还原后 api.js SHA256 = 089CC0E525192F06E9AC7F09034175C921A43C8A3F11CB61D55D16C8F8558AAD
+与源一致：True
+[7m# tests[0m 17
+[7m# pass[0m 17
+[7m# fail[0m 0
+EXIT 还原后目标用例 = 0
+

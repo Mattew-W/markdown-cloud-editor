@@ -1,0 +1,54 @@
+--- baseline/frontend/js/drafts.js
++++ frontend/js/drafts.js
+@@ -690,7 +690,13 @@
+  *
+  * 这不是新增能力，而是满足冻结契约行为要求的必要机制。
+  *
+- * @param {{storage?: StorageAdapter, now?: () => string, delay?: (fn: () => void, ms: number) => unknown}} [options]
++ * @param {{storage?: StorageAdapter, now?: () => string,
++ *          delay?: (fn: () => void, ms: number) => unknown,
++ *          clearDelay?: (handle: unknown) => void}} [options]
++ *   `delay` 与 `clearDelay` 必须成对注入。只注入 `delay` 而不注入取消函数时，
++ *   `flush()` / `flushAll()` / `cancel()` 取消不了注入时钟的句柄——旧定时器仍会到点触发，
++ *   把之后新排入的草稿**提前**写走。这是 M6-R19（假时钟必须模拟被模拟对象的完整语义）
++ *   在实现侧的对应要求。
+  * @returns {{schedule: (draft: object) => void, flush: () => void, flushAll: () => void,
+  *            cancel: () => void, pending: () => boolean}}
+  */
+@@ -698,6 +704,9 @@
+   const store = options.storage ?? defaultStorage();
+   const now = options.now ?? isoNow;
+   const delay = options.delay ?? ((fn, ms) => setTimeout(fn, ms));
++  // 取消必须走与 delay 同一套时钟：注入可控时钟时若仍调用全局 clearTimeout，
++  // 句柄根本不在全局时钟名下，取消是空操作。
++  const clearDelay = options.clearDelay ?? ((handle) => clearTimeout(handle));
+ 
+   /** @type {object | null} 待写入的最新草稿 */
+   let pendingDraft = null;
+@@ -737,7 +746,7 @@
+     /** 切换文档前同步刷新，绕过合并窗口立即写一次。 */
+     flush() {
+       if (timer !== null) {
+-        clearTimeout(timer);
++        clearDelay(timer);
+         timer = null;
+       }
+       writeNow();
+@@ -754,7 +763,7 @@
+       //
+       // 「取消且不落盘」的语义已由 cancel() 提供，两者不该混同。
+       if (timer !== null) {
+-        clearTimeout(timer);
++        clearDelay(timer);
+         timer = null;
+       }
+       // writeNow() 内部已把 pendingDraft 置空并写入存储，
+@@ -766,7 +775,7 @@
+     /** 取消待写入的草稿，不落盘。 */
+     cancel() {
+       if (timer !== null) {
+-        clearTimeout(timer);
++        clearDelay(timer);
+         timer = null;
+       }
+       pendingDraft = null;
