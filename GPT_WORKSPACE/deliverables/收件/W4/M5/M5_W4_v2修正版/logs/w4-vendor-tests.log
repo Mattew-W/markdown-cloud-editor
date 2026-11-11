@@ -1,0 +1,44 @@
+=== 环境 ===
+Node: v22.22.2
+
+=== 命令 ===
+PS> node --test js/tests/editor.security.vendor.test.js
+
+=== 原始输出 ===
+TAP version 13
+# Subtest: vendor 构建可被真实执行并自述版本（与 package.json 声明一致）
+ok 1 - vendor 构建可被真实执行并自述版本（与 package.json 声明一致）
+  ---
+  duration_ms: 60.8222
+  type: 'test'
+  ...
+# Subtest: vendor 真实构建：单行 javascript: 链接——a 元素保留、href 剥离为 null、文本保留
+ok 2 - vendor 真实构建：单行 javascript: 链接——a 元素保留、href 剥离为 null、文本保留
+  ---
+  duration_ms: 36.813
+  type: 'test'
+  ...
+# Subtest: vendor 真实构建：连续 HTML block——无 a、无 script、无事件属性
+ok 3 - vendor 真实构建：连续 HTML block——无 a、无 script、无事件属性
+  ---
+  duration_ms: 18.5051
+  type: 'test'
+  ...
+# Subtest: vendor 真实构建：合法 https 链接正常保留（对照，净化不得过度删除）
+ok 4 - vendor 真实构建：合法 https 链接正常保留（对照，净化不得过度删除）
+  ---
+  duration_ms: 18.7819
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1437.9151
+
+=== 退出码 ===
+0

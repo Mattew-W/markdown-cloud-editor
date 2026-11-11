@@ -1,0 +1,124 @@
+﻿TAP version 13
+# Subtest: 七状态分别映射到对应徽标类与文案
+ok 1 - 七状态分别映射到对应徽标类与文案
+  ---
+  duration_ms: 3.1159
+  type: 'test'
+  ...
+# Subtest: dirty 只表达本地备份，禁止出现已同步/保存成功/已保存字样
+ok 2 - dirty 只表达本地备份，禁止出现已同步/保存成功/已保存字样
+  ---
+  duration_ms: 2.2441
+  type: 'test'
+  ...
+# Subtest: saving 文案不宣称已同步
+ok 3 - saving 文案不宣称已同步
+  ---
+  duration_ms: 0.5777
+  type: 'test'
+  ...
+# Subtest: payload.message 仅覆盖 dirty / retry_wait 状态栏，payload.error 覆盖 invalid
+ok 4 - payload.message 仅覆盖 dirty / retry_wait 状态栏，payload.error 覆盖 invalid
+  ---
+  duration_ms: 0.495
+  type: 'test'
+  ...
+# Subtest: 未知状态回落安全兜底，不抛错
+ok 5 - 未知状态回落安全兜底，不抛错
+  ---
+  duration_ms: 1.7928
+  type: 'test'
+  ...
+# Subtest: 四种 reason 使用 INTERFACES §2.5 逐字冻结文案
+ok 6 - 四种 reason 使用 INTERFACES §2.5 逐字冻结文案
+  ---
+  duration_ms: 0.988
+  type: 'test'
+  ...
+# Subtest: 未知 reason 回落通用兜底，不透出原始异常 message
+ok 7 - 未知 reason 回落通用兜底，不透出原始异常 message
+  ---
+  duration_ms: 0.715
+  type: 'test'
+  ...
+# Subtest: 401 / 400 / 413 分别映射到对应中文提示
+ok 8 - 401 / 400 / 413 分别映射到对应中文提示
+  ---
+  duration_ms: 1.7222
+  type: 'test'
+  ...
+# Subtest: 429 按传入 Retry-After 展示秒数；缺失时不带秒数
+ok 9 - 429 按传入 Retry-After 展示秒数；缺失时不带秒数
+  ---
+  duration_ms: 0.8201
+  type: 'test'
+  ...
+# Subtest: 5xx / 超时 / 网络异常归入结果未知重试提示，未知错误有兜底
+ok 10 - 5xx / 超时 / 网络异常归入结果未知重试提示，未知错误有兜底
+  ---
+  duration_ms: 0.7285
+  type: 'test'
+  ...
+# Subtest: 错误提示不拼接原始 error.message
+ok 11 - 错误提示不拼接原始 error.message
+  ---
+  duration_ms: 0.3683
+  type: 'test'
+  ...
+# Subtest: renderSyncState 写徽标类/文案与状态栏，文本经 textContent 写入
+ok 12 - renderSyncState 写徽标类/文案与状态栏，文本经 textContent 写入
+  ---
+  duration_ms: 158.2144
+  type: 'test'
+  ...
+# Subtest: showStorageFailure 展示冻结文案与下载入口，保留内存内容不清空
+ok 13 - showStorageFailure 展示冻结文案与下载入口，保留内存内容不清空
+  ---
+  duration_ms: 20.7439
+  type: 'test'
+  ...
+# Subtest: 存储失败条不读取或改写编辑器内容，快照仅由上层传入
+ok 14 - 存储失败条不读取或改写编辑器内容，快照仅由上层传入
+  ---
+  duration_ms: 10.1299
+  type: 'test'
+  ...
+# Subtest: showConflict 只读展示云端版本与本地基准，云端内容经 textContent 写入
+ok 15 - showConflict 只读展示云端版本与本地基准，云端内容经 textContent 写入
+  ---
+  duration_ms: 15.7134
+  type: 'test'
+  ...
+# Subtest: 四个选项分别上抛对应 choice，并带回冲突上下文；自身不发请求、不改版本
+ok 16 - 四个选项分别上抛对应 choice，并带回冲突上下文；自身不发请求、不改版本
+  ---
+  duration_ms: 19.9709
+  type: 'test'
+  ...
+# Subtest: 取消保持当前内容：关闭弹窗并上抛 cancel，不触发覆盖/重载/清草稿
+ok 17 - 取消保持当前内容：关闭弹窗并上抛 cancel，不触发覆盖/重载/清草稿
+  ---
+  duration_ms: 12.0695
+  type: 'test'
+  ...
+# Subtest: destroy 后按钮点击不再上抛选择
+ok 18 - destroy 后按钮点击不再上抛选择
+  ---
+  duration_ms: 11.637
+  type: 'test'
+  ...
+# Subtest: 缺少部分 DOM 元素时控制器不抛空引用错误
+ok 19 - 缺少部分 DOM 元素时控制器不抛空引用错误
+  ---
+  duration_ms: 0.4754
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5497.1472

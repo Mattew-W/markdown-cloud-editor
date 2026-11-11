@@ -1,0 +1,68 @@
+=== 环境 ===
+Node: v22.22.2
+
+=== 命令 ===
+PS> node --test js/tests/editor.dom.test.js
+
+=== 原始输出 ===
+TAP version 13
+# Subtest: A 加载路径 setValue：不重建标题/正文节点，也不替换其父节点
+ok 1 - A 加载路径 setValue：不重建标题/正文节点，也不替换其父节点
+  ---
+  duration_ms: 56.7474
+  type: 'test'
+  ...
+# Subtest: A 加载路径 setValue：不主动调用 focus/select，不打断正在进行的输入
+ok 2 - A 加载路径 setValue：不主动调用 focus/select，不打断正在进行的输入
+  ---
+  duration_ms: 5.8364
+  type: 'test'
+  ...
+# Subtest: A 加载路径 setValue：内容相同时选区数值保持不变（显式断言具体数值）
+ok 3 - A 加载路径 setValue：内容相同时选区数值保持不变（显式断言具体数值）
+  ---
+  duration_ms: 5.4432
+  type: 'test'
+  ...
+# Subtest: B 保存路径：用户输入导致预览重渲染时，不重建 textarea、不改变选区
+ok 4 - B 保存路径：用户输入导致预览重渲染时，不重建 textarea、不改变选区
+  ---
+  duration_ms: 6.047
+  type: 'test'
+  ...
+# Subtest: B 保存路径：同步状态变化不改写编辑区（节点身份与选区均不变）
+ok 5 - B 保存路径：同步状态变化不改写编辑区（节点身份与选区均不变）
+  ---
+  duration_ms: 7.2425
+  type: 'test'
+  ...
+# Subtest: B 保存路径：状态变化不得重建 textarea（节点身份逐状态比对）
+ok 6 - B 保存路径：状态变化不得重建 textarea（节点身份逐状态比对）
+  ---
+  duration_ms: 10.7961
+  type: 'test'
+  ...
+# Subtest: A 加载路径 setValue 不触发 onInput（加载文档不算用户编辑，jsdom 真实事件）
+ok 7 - A 加载路径 setValue 不触发 onInput（加载文档不算用户编辑，jsdom 真实事件）
+  ---
+  duration_ms: 4.9815
+  type: 'test'
+  ...
+# Subtest: destroy 移除两个输入框的监听，重复调用保持幂等
+ok 8 - destroy 移除两个输入框的监听，重复调用保持幂等
+  ---
+  duration_ms: 6.4546
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1378.7135
+
+=== 退出码 ===
+0

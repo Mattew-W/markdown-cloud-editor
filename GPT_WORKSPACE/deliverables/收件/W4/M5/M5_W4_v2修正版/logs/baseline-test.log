@@ -1,0 +1,892 @@
+﻿
+> markdown-cloud-editor-frontend@0.1.0 test
+> node --test "js/tests/*.test.js"
+
+TAP version 13
+# Subtest: apiFetch — 真实 HTTP 传输（127.0.0.1）
+    # Subtest: 真实请求路径为 /api/v1/documents（相对路径直传，本机解析）
+    ok 1 - 真实请求路径为 /api/v1/documents（相对路径直传，本机解析）
+      ---
+      duration_ms: 117.9646
+      type: 'test'
+      ...
+    # Subtest: Authorization 只在请求头，不进 URL
+    ok 2 - Authorization 只在请求头，不进 URL
+      ---
+      duration_ms: 24.7184
+      type: 'test'
+      ...
+    # Subtest: JSON 请求体被真实发送，并带 Content-Type: application/json
+    ok 3 - JSON 请求体被真实发送，并带 Content-Type: application/json
+      ---
+      duration_ms: 24.4387
+      type: 'test'
+      ...
+    # Subtest: 错误响应真实映射：400→InvalidInputError、404→NotFoundError、500→ServerError
+    ok 4 - 错误响应真实映射：400→InvalidInputError、404→NotFoundError、500→ServerError
+      ---
+      duration_ms: 31.118
+      type: 'test'
+      ...
+    # Subtest: 429 RATE_LIMITED 在真实传输下保留 Retry-After 头
+    ok 5 - 429 RATE_LIMITED 在真实传输下保留 Retry-After 头
+      ---
+      duration_ms: 10.6477
+      type: 'test'
+      ...
+    # Subtest: 九类 error.code 在真实传输下全部映射到对应错误类
+    ok 6 - 九类 error.code 在真实传输下全部映射到对应错误类
+      ---
+      duration_ms: 60.1518
+      type: 'test'
+      ...
+    # Subtest: 409 VERSION_CONFLICT 在真实传输下携带 serverVersion（两种 409 不混淆）
+    ok 7 - 409 VERSION_CONFLICT 在真实传输下携带 serverVersion（两种 409 不混淆）
+      ---
+      duration_ms: 7.1759
+      type: 'test'
+      ...
+    # Subtest: 409 VERSION_CONFLICT 缺 server_version → ProtocolError，不编造版本
+    ok 8 - 409 VERSION_CONFLICT 缺 server_version → ProtocolError，不编造版本
+      ---
+      duration_ms: 7.8779
+      type: 'test'
+      ...
+    # Subtest: DELETE 的 expected_version 走查询参数，不进请求体
+    ok 9 - DELETE 的 expected_version 走查询参数，不进请求体
+      ---
+      duration_ms: 6.9493
+      type: 'test'
+      ...
+    # Subtest: 返回 JSON 响应头 + 不完整正文后断开连接 → NetworkError
+    ok 10 - 返回 JSON 响应头 + 不完整正文后断开连接 → NetworkError
+      ---
+      duration_ms: 44.891
+      type: 'test'
+      ...
+    # Subtest: 成功（200）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+    ok 11 - 成功（200）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+      ---
+      duration_ms: 7.796
+      type: 'test'
+      ...
+    # Subtest: 错误（400）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+    ok 12 - 错误（400）正文读取超时 → TimeoutError（可控时钟，不真等 10 秒）
+      ---
+      duration_ms: 6.1866
+      type: 'test'
+      ...
+    # Subtest: 恶意畸形 JSON（Content-Type: application/json）→ ProtocolError
+    ok 13 - 恶意畸形 JSON（Content-Type: application/json）→ ProtocolError
+      ---
+      duration_ms: 7.7376
+      type: 'test'
+      ...
+    # Subtest: 错误响应声明 JSON 但内容损坏 → ProtocolError
+    ok 14 - 错误响应声明 JSON 但内容损坏 → ProtocolError
+      ---
+      duration_ms: 8.3313
+      type: 'test'
+      ...
+    # Subtest: 非 JSON 错误响应（text/html 错误页）→ ApiError，保留 status，不把 HTML 当 JSON 解析
+    ok 15 - 非 JSON 错误响应（text/html 错误页）→ ApiError，保留 status，不把 HTML 当 JSON 解析
+      ---
+      duration_ms: 9.3284
+      type: 'test'
+      ...
+    # Subtest: 204 真实传输返回 null（不解析正文）
+    ok 16 - 204 真实传输返回 null（不解析正文）
+      ---
+      duration_ms: 4.9896
+      type: 'test'
+      ...
+    # Subtest: 连接被拒（端口无服务监听）→ NetworkError
+    ok 17 - 连接被拒（端口无服务监听）→ NetworkError
+      ---
+      duration_ms: 5.1583
+      type: 'test'
+      ...
+    1..17
+ok 1 - apiFetch — 真实 HTTP 传输（127.0.0.1）
+  ---
+  duration_ms: 389.5153
+  type: 'suite'
+  ...
+# Subtest: apiFetch — 成功路径与 204
+    # Subtest: 200 返回解析后的 JSON
+    ok 1 - 200 返回解析后的 JSON
+      ---
+      duration_ms: 63.2494
+      type: 'test'
+      ...
+    # Subtest: 201 返回解析后的 JSON
+    ok 2 - 201 返回解析后的 JSON
+      ---
+      duration_ms: 1.8604
+      type: 'test'
+      ...
+    # Subtest: 204 绝不调用 response.json()，返回 null
+    ok 3 - 204 绝不调用 response.json()，返回 null
+      ---
+      duration_ms: 0.7574
+      type: 'test'
+      ...
+    # Subtest: 成功但内容不是合法 JSON 抛 ProtocolError，不伪装成成功
+    ok 4 - 成功但内容不是合法 JSON 抛 ProtocolError，不伪装成成功
+      ---
+      duration_ms: 8.6346
+      type: 'test'
+      ...
+    # Subtest: 其他 2xx（202/206 等）按契约解析 JSON——API.md §1：除 204 外成功响应均为 JSON
+    ok 5 - 其他 2xx（202/206 等）按契约解析 JSON——API.md §1：除 204 外成功响应均为 JSON
+      ---
+      duration_ms: 4.4448
+      type: 'test'
+      ...
+    # Subtest: 2xx 状态码不为 200/201/204 时不套用 204 的 null 返回
+    ok 6 - 2xx 状态码不为 200/201/204 时不套用 204 的 null 返回
+      ---
+      duration_ms: 1.6341
+      type: 'test'
+      ...
+    1..6
+ok 2 - apiFetch — 成功路径与 204
+  ---
+  duration_ms: 83.7911
+  type: 'suite'
+  ...
+# Subtest: apiFetch — 请求构造
+    # Subtest: 传入 fetch 的是相对路径，前缀只拼一次
+    ok 1 - 传入 fetch 的是相对路径，前缀只拼一次
+      ---
+      duration_ms: 2.9945
+      type: 'test'
+      ...
+    # Subtest: Bearer 只出现在请求头，不进 URL
+    ok 2 - Bearer 只出现在请求头，不进 URL
+      ---
+      duration_ms: 1.8567
+      type: 'test'
+      ...
+    # Subtest: 始终带 Accept: application/json
+    ok 3 - 始终带 Accept: application/json
+      ---
+      duration_ms: 1.2352
+      type: 'test'
+      ...
+    # Subtest: body 不为 undefined 时序列化为 JSON 并带 Content-Type
+    ok 4 - body 不为 undefined 时序列化为 JSON 并带 Content-Type
+      ---
+      duration_ms: 1.142
+      type: 'test'
+      ...
+    # Subtest: body 为 undefined 时不带 body 也不设 Content-Type
+    ok 5 - body 为 undefined 时不带 body 也不设 Content-Type
+      ---
+      duration_ms: 0.8833
+      type: 'test'
+      ...
+    # Subtest: GET 不接受 body
+    ok 6 - GET 不接受 body
+      ---
+      duration_ms: 0.5257
+      type: 'test'
+      ...
+    # Subtest: 非法路径被拒：完整外域、协议相对、重复前缀、空串、非字符串
+    ok 7 - 非法路径被拒：完整外域、协议相对、重复前缀、空串、非字符串
+      ---
+      duration_ms: 0.9378
+      type: 'test'
+      ...
+    1..7
+ok 3 - apiFetch — 请求构造
+  ---
+  duration_ms: 10.4424
+  type: 'suite'
+  ...
+# Subtest: apiFetch — 错误码映射
+    # Subtest: BAD_REQUEST (400) → InvalidInputError
+    ok 1 - BAD_REQUEST (400) → InvalidInputError
+      ---
+      duration_ms: 2.1951
+      type: 'test'
+      ...
+    # Subtest: UNAUTHORIZED (401) → AuthError
+    ok 2 - UNAUTHORIZED (401) → AuthError
+      ---
+      duration_ms: 0.7954
+      type: 'test'
+      ...
+    # Subtest: NOT_FOUND (404) → NotFoundError
+    ok 3 - NOT_FOUND (404) → NotFoundError
+      ---
+      duration_ms: 0.7242
+      type: 'test'
+      ...
+    # Subtest: USERNAME_TAKEN (409) → ConflictError
+    ok 4 - USERNAME_TAKEN (409) → ConflictError
+      ---
+      duration_ms: 1.1
+      type: 'test'
+      ...
+    # Subtest: PAYLOAD_TOO_LARGE (413) → TooLargeError
+    ok 5 - PAYLOAD_TOO_LARGE (413) → TooLargeError
+      ---
+      duration_ms: 0.8435
+      type: 'test'
+      ...
+    # Subtest: RATE_LIMITED (429) → RateLimitedError
+    ok 6 - RATE_LIMITED (429) → RateLimitedError
+      ---
+      duration_ms: 1.9439
+      type: 'test'
+      ...
+    # Subtest: SERVICE_UNAVAILABLE (503) → ServiceUnavailableError
+    ok 7 - SERVICE_UNAVAILABLE (503) → ServiceUnavailableError
+      ---
+      duration_ms: 0.4785
+      type: 'test'
+      ...
+    # Subtest: INTERNAL_ERROR (500) → ServerError
+    ok 8 - INTERNAL_ERROR (500) → ServerError
+      ---
+      duration_ms: 0.5628
+      type: 'test'
+      ...
+    # Subtest: VERSION_CONFLICT (409) → VersionConflictError，携带 serverVersion 与 requestId
+    ok 9 - VERSION_CONFLICT (409) → VersionConflictError，携带 serverVersion 与 requestId
+      ---
+      duration_ms: 0.9845
+      type: 'test'
+      ...
+    # Subtest: 两种 409 不混淆
+    ok 10 - 两种 409 不混淆
+      ---
+      duration_ms: 1.5801
+      type: 'test'
+      ...
+    # Subtest: VERSION_CONFLICT 缺 server_version 抛 ProtocolError，不编造版本
+    ok 11 - VERSION_CONFLICT 缺 server_version 抛 ProtocolError，不编造版本
+      ---
+      duration_ms: 0.5482
+      type: 'test'
+      ...
+    # Subtest: server_version 非正整数同样抛 ProtocolError
+    ok 12 - server_version 非正整数同样抛 ProtocolError
+      ---
+      duration_ms: 1.784
+      type: 'test'
+      ...
+    # Subtest: RATE_LIMITED 保留原始 Retry-After 头
+    ok 13 - RATE_LIMITED 保留原始 Retry-After 头
+      ---
+      duration_ms: 0.7542
+      type: 'test'
+      ...
+    # Subtest: 未知 code 归为基类 ApiError，保留 status 与 code
+    ok 14 - 未知 code 归为基类 ApiError，保留 status 与 code
+      ---
+      duration_ms: 0.472
+      type: 'test'
+      ...
+    # Subtest: request_id 缺失时回落到 X-Request-Id 响应头
+    ok 15 - request_id 缺失时回落到 X-Request-Id 响应头
+      ---
+      duration_ms: 0.4269
+      type: 'test'
+      ...
+    # Subtest: 响应体与响应头都无 request_id 时为 null
+    ok 16 - 响应体与响应头都无 request_id 时为 null
+      ---
+      duration_ms: 0.4185
+      type: 'test'
+      ...
+    # Subtest: error 字段不是对象时不崩溃，归基类 ApiError 并保留 status
+    ok 17 - error 字段不是对象时不崩溃，归基类 ApiError 并保留 status
+      ---
+      duration_ms: 1.4546
+      type: 'test'
+      ...
+    # Subtest: error 字段缺失时归基类 ApiError（不因结构不全而崩溃）
+    ok 18 - error 字段缺失时归基类 ApiError（不因结构不全而崩溃）
+      ---
+      duration_ms: 0.7448
+      type: 'test'
+      ...
+    # Subtest: details 缺失时为 null（非 VERSION_CONFLICT 场景）
+    ok 19 - details 缺失时为 null（非 VERSION_CONFLICT 场景）
+      ---
+      duration_ms: 0.6498
+      type: 'test'
+      ...
+    1..19
+ok 4 - apiFetch — 错误码映射
+  ---
+  duration_ms: 19.5597
+  type: 'suite'
+  ...
+# Subtest: apiFetch — 坏响应处理
+    # Subtest: Content-Type 非 JSON 的 500 归 ApiError，不尝试解析 HTML
+    ok 1 - Content-Type 非 JSON 的 500 归 ApiError，不尝试解析 HTML
+      ---
+      duration_ms: 0.8062
+      type: 'test'
+      ...
+    # Subtest: 声明 JSON 但内容损坏 → ProtocolError
+    ok 2 - 声明 JSON 但内容损坏 → ProtocolError
+      ---
+      duration_ms: 0.6659
+      type: 'test'
+      ...
+    # Subtest: application/*+json 变体被识别为 JSON 错误体
+    ok 3 - application/*+json 变体被识别为 JSON 错误体
+      ---
+      duration_ms: 0.8162
+      type: 'test'
+      ...
+    # Subtest: application/json 带 charset 参数被识别为 JSON
+    ok 4 - application/json 带 charset 参数被识别为 JSON
+      ---
+      duration_ms: 0.9013
+      type: 'test'
+      ...
+    # Subtest: 401 无可读 JSON 时仍归 AuthError
+    ok 5 - 401 无可读 JSON 时仍归 AuthError
+      ---
+      duration_ms: 0.5417
+      type: 'test'
+      ...
+    1..5
+ok 5 - apiFetch — 坏响应处理
+  ---
+  duration_ms: 4.1259
+  type: 'suite'
+  ...
+# Subtest: apiFetch — 超时与网络故障
+    # Subtest: 9999ms 不 abort，10000ms 触发 abort 并抛 TimeoutError
+    ok 1 - 9999ms 不 abort，10000ms 触发 abort 并抛 TimeoutError
+      ---
+      duration_ms: 1.0637
+      type: 'test'
+      ...
+    # Subtest: 网络拒绝抛 NetworkError
+    ok 2 - 网络拒绝抛 NetworkError
+      ---
+      duration_ms: 0.52
+      type: 'test'
+      ...
+    # Subtest: 成功路径清理定时器
+    ok 3 - 成功路径清理定时器
+      ---
+      duration_ms: 0.6285
+      type: 'test'
+      ...
+    # Subtest: 业务失败路径清理定时器
+    ok 4 - 业务失败路径清理定时器
+      ---
+      duration_ms: 0.8952
+      type: 'test'
+      ...
+    # Subtest: 解析失败路径清理定时器
+    ok 5 - 解析失败路径清理定时器
+      ---
+      duration_ms: 0.8211
+      type: 'test'
+      ...
+    # Subtest: 网络失败路径清理定时器
+    ok 6 - 网络失败路径清理定时器
+      ---
+      duration_ms: 0.5179
+      type: 'test'
+      ...
+    1..6
+ok 6 - apiFetch — 超时与网络故障
+  ---
+  duration_ms: 4.9043
+  type: 'suite'
+  ...
+# Subtest: apiFetch — 不自动重试
+    # Subtest: 网络失败时 fetch 只调用一次
+    ok 1 - 网络失败时 fetch 只调用一次
+      ---
+      duration_ms: 0.5207
+      type: 'test'
+      ...
+    # Subtest: 业务错误时 fetch 只调用一次
+    ok 2 - 业务错误时 fetch 只调用一次
+      ---
+      duration_ms: 0.6927
+      type: 'test'
+      ...
+    # Subtest: 序列化失败不发出请求
+    ok 3 - 序列化失败不发出请求
+      ---
+      duration_ms: 0.4673
+      type: 'test'
+      ...
+    # Subtest: 非法路径不发出请求
+    ok 4 - 非法路径不发出请求
+      ---
+      duration_ms: 0.3235
+      type: 'test'
+      ...
+    1..4
+ok 7 - apiFetch — 不自动重试
+  ---
+  duration_ms: 2.274
+  type: 'suite'
+  ...
+# Subtest: apiFetch — 协议字面量必须为 ASCII
+    # Subtest: HTTP 头名与协议标识符均为纯 ASCII
+    ok 1 - HTTP 头名与协议标识符均为纯 ASCII
+      ---
+      duration_ms: 6.6629
+      type: 'test'
+      ...
+    # Subtest: 运行时验证：标准头名可被 Headers 正常构造与读取
+    ok 2 - 运行时验证：标准头名可被 Headers 正常构造与读取
+      ---
+      duration_ms: 0.2886
+      type: 'test'
+      ...
+    # Subtest: 运行时验证：含非 ASCII 的头名会抛错（这正是要防的故障）
+    ok 3 - 运行时验证：含非 ASCII 的头名会抛错（这正是要防的故障）
+      ---
+      duration_ms: 0.3183
+      type: 'test'
+      ...
+    1..3
+ok 8 - apiFetch — 协议字面量必须为 ASCII
+  ---
+  duration_ms: 7.4906
+  type: 'suite'
+  ...
+# Subtest: 键格式为 markdown-editor:draft:userId:docId:sessionId
+ok 9 - 键格式为 markdown-editor:draft:userId:docId:sessionId
+  ---
+  duration_ms: 4.0727
+  type: 'test'
+  ...
+# Subtest: 解析键与构造严格互逆
+ok 10 - 解析键与构造严格互逆
+  ---
+  duration_ms: 1.6841
+  type: 'test'
+  ...
+# Subtest: 段内含分隔符不破坏解析
+ok 11 - 段内含分隔符不破坏解析
+  ---
+  duration_ms: 0.5311
+  type: 'test'
+  ...
+# Subtest: 非本模块键返回 null 而非抛异常
+ok 12 - 非本模块键返回 null 而非抛异常
+  ---
+  duration_ms: 0.3547
+  type: 'test'
+  ...
+# Subtest: 缺失段时构造抛 TypeError
+ok 13 - 缺失段时构造抛 TypeError
+  ---
+  duration_ms: 1.0688
+  type: 'test'
+  ...
+# Subtest: 落盘为 snake_case 且含全部 8 个字段
+ok 14 - 落盘为 snake_case 且含全部 8 个字段
+  ---
+  duration_ms: 1.509
+  type: 'test'
+  ...
+# Subtest: recorded_at 是 ISO 8601 UTC 字符串而非数字
+ok 15 - recorded_at 是 ISO 8601 UTC 字符串而非数字
+  ---
+  duration_ms: 0.8982
+  type: 'test'
+  ...
+# Subtest: 正文允许空串
+ok 16 - 正文允许空串
+  ---
+  duration_ms: 0.6176
+  type: 'test'
+  ...
+# Subtest: content 非字符串判为 corrupt 而非静默接受
+ok 17 - content 非字符串判为 corrupt 而非静默接受
+  ---
+  duration_ms: 1.5246
+  type: 'test'
+  ...
+# Subtest: recorded_at 缺失不显示 Invalid Date 而判 corrupt
+ok 18 - recorded_at 缺失不显示 Invalid Date 而判 corrupt
+  ---
+  duration_ms: 3.6426
+  type: 'test'
+  ...
+# Subtest: base_version 与 local_revision 越界判 corrupt
+ok 19 - base_version 与 local_revision 越界判 corrupt
+  ---
+  duration_ms: 1.6564
+  type: 'test'
+  ...
+# Subtest: 键与记录不一致判 corrupt
+ok 20 - 键与记录不一致判 corrupt
+  ---
+  duration_ms: 0.6001
+  type: 'test'
+  ...
+# Subtest: 读取不存在的键返回 null
+ok 21 - 读取不存在的键返回 null
+  ---
+  duration_ms: 0.6116
+  type: 'test'
+  ...
+# Subtest: 两个用户的草稿互相不可见
+ok 22 - 两个用户的草稿互相不可见
+  ---
+  duration_ms: 1.0938
+  type: 'test'
+  ...
+# Subtest: 按 docId 过滤
+ok 23 - 按 docId 过滤
+  ---
+  duration_ms: 1.2253
+  type: 'test'
+  ...
+# Subtest: 不扫描其他应用的键
+ok 24 - 不扫描其他应用的键
+  ---
+  duration_ms: 0.4583
+  type: 'test'
+  ...
+# Subtest: 同一文档的多个会话草稿并存
+ok 25 - 同一文档的多个会话草稿并存
+  ---
+  duration_ms: 0.5672
+  type: 'test'
+  ...
+# Subtest: clearSessionDrafts 默认不删其他会话的草稿（保守）
+ok 26 - clearSessionDrafts 默认不删其他会话的草稿（保守）
+  ---
+  duration_ms: 0.9885
+  type: 'test'
+  ...
+# Subtest: clearSessionDrafts 仅在云端已覆盖时才删（标题与正文都一致）
+ok 27 - clearSessionDrafts 仅在云端已覆盖时才删（标题与正文都一致）
+  ---
+  duration_ms: 0.5031
+  type: 'test'
+  ...
+# Subtest: clearSessionDrafts 保留「云端版本够但内容不同」的草稿
+ok 28 - clearSessionDrafts 保留「云端版本够但内容不同」的草稿
+  ---
+  duration_ms: 4.3758
+  type: 'test'
+  ...
+# Subtest: clearSessionDrafts 保留「仅标题不同」的草稿
+ok 29 - clearSessionDrafts 保留「仅标题不同」的草稿
+  ---
+  duration_ms: 0.452
+  type: 'test'
+  ...
+# Subtest: clearSessionDrafts 支持显式确认丢弃
+ok 30 - clearSessionDrafts 支持显式确认丢弃
+  ---
+  duration_ms: 1.3601
+  type: 'test'
+  ...
+# Subtest: clearSessionDrafts 云端字段缺失时不得删除（回归）
+ok 31 - clearSessionDrafts 云端字段缺失时不得删除（回归）
+  ---
+  duration_ms: 0.7942
+  type: 'test'
+  ...
+# Subtest: writeNow 写失败时保留待写快照以供重试（回归）
+ok 32 - writeNow 写失败时保留待写快照以供重试（回归）
+  ---
+  duration_ms: 0.9855
+  type: 'test'
+  ...
+# Subtest: clearSessionDrafts 不影响其他文档
+ok 33 - clearSessionDrafts 不影响其他文档
+  ---
+  duration_ms: 0.3677
+  type: 'test'
+  ...
+# Subtest: 三项全等才删除
+ok 34 - 三项全等才删除
+  ---
+  duration_ms: 0.4711
+  type: 'test'
+  ...
+# Subtest: 会话不同则拒绝删除
+ok 35 - 会话不同则拒绝删除
+  ---
+  duration_ms: 0.3226
+  type: 'test'
+  ...
+# Subtest: 修订号不同则拒绝删除（防抹掉新修改）
+ok 36 - 修订号不同则拒绝删除（防抹掉新修改）
+  ---
+  duration_ms: 1.6193
+  type: 'test'
+  ...
+# Subtest: 内容不同则拒绝删除
+ok 37 - 内容不同则拒绝删除
+  ---
+  duration_ms: 0.3457
+  type: 'test'
+  ...
+# Subtest: 删除不存在的草稿视为已达成目标
+ok 38 - 删除不存在的草稿视为已达成目标
+  ---
+  duration_ms: 0.2137
+  type: 'test'
+  ...
+# Subtest: 存储禁用映射 unavailable
+ok 39 - 存储禁用映射 unavailable
+  ---
+  duration_ms: 0.3664
+  type: 'test'
+  ...
+# Subtest: 属性访问阶段抛出的 SecurityError 也归一化为 unavailable
+ok 40 - 属性访问阶段抛出的 SecurityError 也归一化为 unavailable
+  ---
+  duration_ms: 0.4651
+  type: 'test'
+  ...
+# Subtest: 配额耗尽映射 quota
+ok 41 - 配额耗尽映射 quota
+  ---
+  duration_ms: 0.2966
+  type: 'test'
+  ...
+# Subtest: 值损坏映射 corrupt
+ok 42 - 值损坏映射 corrupt
+  ---
+  duration_ms: 0.395
+  type: 'test'
+  ...
+# Subtest: 错误文案为中文，不透出浏览器英文原文
+ok 43 - 错误文案为中文，不透出浏览器英文原文
+  ---
+  duration_ms: 0.5876
+  type: 'test'
+  ...
+# Subtest: 四种 reason 各有中文文案
+ok 44 - 四种 reason 各有中文文案
+  ---
+  duration_ms: 0.5682
+  type: 'test'
+  ...
+# Subtest: 窗口内连续调用只写最后一次
+ok 45 - 窗口内连续调用只写最后一次
+  ---
+  duration_ms: 0.4564
+  type: 'test'
+  ...
+# Subtest: flush 绕过窗口立即写入
+ok 46 - flush 绕过窗口立即写入
+  ---
+  duration_ms: 0.3035
+  type: 'test'
+  ...
+# Subtest: cancel 后不再写入
+ok 47 - cancel 后不再写入
+  ---
+  duration_ms: 0.2974
+  type: 'test'
+  ...
+# Subtest: flushAll 必须落盘（不能只取消定时器）
+ok 48 - flushAll 必须落盘（不能只取消定时器）
+  ---
+  duration_ms: 0.4036
+  type: 'test'
+  ...
+# Subtest: 内容相同则采用云端
+ok 49 - 内容相同则采用云端
+  ---
+  duration_ms: 0.2422
+  type: 'test'
+  ...
+# Subtest: 仅标题不同时不得判为 adopt_cloud（否则标题改动会丢失）
+ok 50 - 仅标题不同时不得判为 adopt_cloud（否则标题改动会丢失）
+  ---
+  duration_ms: 0.179
+  type: 'test'
+  ...
+# Subtest: 仅标题不同时且版本未变则需确认
+ok 51 - 仅标题不同时且版本未变则需确认
+  ---
+  duration_ms: 0.1443
+  type: 'test'
+  ...
+# Subtest: 云端版本等于 base_version 则需确认
+ok 52 - 云端版本等于 base_version 则需确认
+  ---
+  duration_ms: 0.2637
+  type: 'test'
+  ...
+# Subtest: 版本不同且内容不同则冲突
+ok 53 - 版本不同且内容不同则冲突
+  ---
+  duration_ms: 0.467
+  type: 'test'
+  ...
+# Subtest: classifyRestore 不修改传入对象
+ok 54 - classifyRestore 不修改传入对象
+  ---
+  duration_ms: 0.2431
+  type: 'test'
+  ...
+# Subtest: 按 recordedAt 降序
+ok 55 - 按 recordedAt 降序
+  ---
+  duration_ms: 0.7508
+  type: 'test'
+  ...
+# Subtest: setValue 更新标题/正文/预览且不触发 onInput
+ok 56 - setValue 更新标题/正文/预览且不触发 onInput
+  ---
+  duration_ms: 2.4525
+  type: 'test'
+  ...
+# Subtest: 标题 input 触发一次回调，载荷含完整 title/content
+ok 57 - 标题 input 触发一次回调，载荷含完整 title/content
+  ---
+  duration_ms: 2.3534
+  type: 'test'
+  ...
+# Subtest: 正文 input 触发一次回调并刷新预览
+ok 58 - 正文 input 触发一次回调并刷新预览
+  ---
+  duration_ms: 0.5509
+  type: 'test'
+  ...
+# Subtest: onInput 返回的 unsubscribe 可停止通知
+ok 59 - onInput 返回的 unsubscribe 可停止通知
+  ---
+  duration_ms: 0.5032
+  type: 'test'
+  ...
+# Subtest: destroy 后移除监听且不再通知
+ok 60 - destroy 后移除监听且不再通知
+  ---
+  duration_ms: 0.6986
+  type: 'test'
+  ...
+# Subtest: getValue 返回当前标题与正文
+ok 61 - getValue 返回当前标题与正文
+  ---
+  duration_ms: 0.3288
+  type: 'test'
+  ...
+# Subtest: createEditor 缺少必填参数时抛 TypeError
+ok 62 - createEditor 缺少必填参数时抛 TypeError
+  ---
+  duration_ms: 2.7903
+  type: 'test'
+  ...
+# Subtest: 初始化：注册 input 监听但不渲染预览、不触发 onInput
+ok 63 - 初始化：注册 input 监听但不渲染预览、不触发 onInput
+  ---
+  duration_ms: 1.9377
+  type: 'test'
+  ...
+# Subtest: unsubscribe 重复调用保持幂等（不抛错、不重复通知）
+ok 64 - unsubscribe 重复调用保持幂等（不抛错、不重复通知）
+  ---
+  duration_ms: 2.1052
+  type: 'test'
+  ...
+# Subtest: destroy 重复调用保持幂等（不抛错、监听不重复移除）
+ok 65 - destroy 重复调用保持幂等（不抛错、监听不重复移除）
+  ---
+  duration_ms: 0.4663
+  type: 'test'
+  ...
+# Subtest: destroy 后再 onInput 订阅无效：销毁后的实例不再响应输入
+ok 66 - destroy 后再 onInput 订阅无效：销毁后的实例不再响应输入
+  ---
+  duration_ms: 0.6087
+  type: 'test'
+  ...
+# Subtest: 正常 Markdown：标题/加粗/代码块正确渲染
+ok 67 - 正常 Markdown：标题/加粗/代码块正确渲染
+  ---
+  duration_ms: 82.8791
+  type: 'test'
+  ...
+# Subtest: script 标签经真实净化后不保留
+ok 68 - script 标签经真实净化后不保留
+  ---
+  duration_ms: 25.0072
+  type: 'test'
+  ...
+# Subtest: img onerror 事件属性经真实净化后移除
+ok 69 - img onerror 事件属性经真实净化后移除
+  ---
+  duration_ms: 24.065
+  type: 'test'
+  ...
+# Subtest: javascript: 链接经真实净化后不保留危险 href
+ok 70 - javascript: 链接经真实净化后不保留危险 href
+  ---
+  duration_ms: 29.7351
+  type: 'test'
+  ...
+# Subtest: 标题/列表恶意字符串仍是文本（textContent 渲染）
+ok 71 - 标题/列表恶意字符串仍是文本（textContent 渲染）
+  ---
+  duration_ms: 28.1996
+  type: 'test'
+  ...
+# Subtest: setValue 不发输入通知（真实 DOM）
+ok 72 - setValue 不发输入通知（真实 DOM）
+  ---
+  duration_ms: 18.114
+  type: 'test'
+  ...
+# Subtest: 标题与正文各自输入都发一次正确载荷（真实 DOM）
+ok 73 - 标题与正文各自输入都发一次正确载荷（真实 DOM）
+  ---
+  duration_ms: 23.46
+  type: 'test'
+  ...
+# Subtest: 取消订阅/destroy 后不再通知（真实 DOM）
+ok 74 - 取消订阅/destroy 后不再通知（真实 DOM）
+  ---
+  duration_ms: 14.6183
+  type: 'test'
+  ...
+# Subtest: editor 实例同时支持 setValue 和 setValues
+ok 75 - editor 实例同时支持 setValue 和 setValues
+  ---
+  duration_ms: 6.4942
+  type: 'test'
+  ...
+# Subtest: drafts.listDrafts 支持对象传参和位置传参
+ok 76 - drafts.listDrafts 支持对象传参和位置传参
+  ---
+  duration_ms: 2.5551
+  type: 'test'
+  ...
+# Subtest: drafts.discardDraft 支持双参数和单对象传参
+ok 77 - drafts.discardDraft 支持双参数和单对象传参
+  ---
+  duration_ms: 0.9879
+  type: 'test'
+  ...
+# Subtest: drafts.clearSessionDrafts force 模式可清除包括当前会话在内的所有草稿
+ok 78 - drafts.clearSessionDrafts force 模式可清除包括当前会话在内的所有草稿
+  ---
+  duration_ms: 0.8821
+  type: 'test'
+  ...
+1..78
+# tests 137
+# suites 8
+# pass 137
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6413.2142

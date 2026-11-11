@@ -1,0 +1,64 @@
+﻿TAP version 13
+# Subtest: setValue 不重建标题/正文节点，也不替换其父节点
+ok 1 - setValue 不重建标题/正文节点，也不替换其父节点
+  ---
+  duration_ms: 131.2689
+  type: 'test'
+  ...
+# Subtest: setValue 不主动调用 focus/select，不打断正在进行的输入
+ok 2 - setValue 不主动调用 focus/select，不打断正在进行的输入
+  ---
+  duration_ms: 15.387
+  type: 'test'
+  ...
+# Subtest: setValue 保留输入框元素引用，选区起点不被编辑器代码重置
+ok 3 - setValue 保留输入框元素引用，选区起点不被编辑器代码重置
+  ---
+  duration_ms: 10.7452
+  type: 'test'
+  ...
+# Subtest: setValue 不触发 onInput（加载文档不算用户编辑，jsdom 真实事件）
+ok 4 - setValue 不触发 onInput（加载文档不算用户编辑，jsdom 真实事件）
+  ---
+  duration_ms: 10.6678
+  type: 'test'
+  ...
+# Subtest: destroy 移除两个输入框的监听，重复调用保持幂等
+ok 5 - destroy 移除两个输入框的监听，重复调用保持幂等
+  ---
+  duration_ms: 9.3517
+  type: 'test'
+  ...
+# Subtest: 单行 javascript: 链接：a 元素保留、危险 href 被剥离、链接文本保留
+ok 6 - 单行 javascript: 链接：a 元素保留、危险 href 被剥离、链接文本保留
+  ---
+  duration_ms: 64.5105
+  type: 'test'
+  ...
+# Subtest: 连续 HTML block：无链接、无脚本、无任何事件属性
+ok 7 - 连续 HTML block：无链接、无脚本、无任何事件属性
+  ---
+  duration_ms: 30.2742
+  type: 'test'
+  ...
+# Subtest: 普通 https 链接正常保留 href（对照：安全净化不得过度删除合法链接）
+ok 8 - 普通 https 链接正常保留 href（对照：安全净化不得过度删除合法链接）
+  ---
+  duration_ms: 25.891
+  type: 'test'
+  ...
+# Subtest: 版本闭环：package.json 精确版本 = node_modules 实测 = vendor 本地托管版本
+ok 9 - 版本闭环：package.json 精确版本 = node_modules 实测 = vendor 本地托管版本
+  ---
+  duration_ms: 5.0747
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6139.9097
