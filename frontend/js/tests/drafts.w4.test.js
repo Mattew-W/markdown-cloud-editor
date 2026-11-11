@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 
 import {
   DRAFT_KEY_PREFIX,
+  MERGE_WINDOW_MS,
   DraftStorageError,
   buildDraftKey,
   classifyRestore,
@@ -103,6 +104,11 @@ function makeClock() {
     },
     ids() {
       return [...timers.keys()];
+    },
+    /** 取某个定时器被排入时的延迟毫秒数——用于断言「实际排入的就是 250ms」 */
+    msOf(id) {
+      const entry = timers.get(id);
+      return entry ? entry.ms : null;
     },
   };
 }
@@ -340,6 +346,23 @@ test('M6-02 版本/修订非整数、日期不可解析或为数字 → corrupt�
   }
 });
 
+test('M6-02 saveDraft 返回的 recordedAt 也必须可解析（返回值是调用方直接用的）', () => {
+  // 上一条用例校验的是**落盘后读回**的 recorded_at；
+  // 这里校验**saveDraft 的返回值**——它同样会直接进入界面与日志，
+  // 若这里返回 Invalid Date，读回时虽正常，界面仍会显示非法日期。
+  const store = makeStorage();
+  const result = saveDraft(draftOf(), store);
+
+  assert.equal(typeof result.recordedAt, 'string');
+  assert.equal(
+    Number.isNaN(Date.parse(result.recordedAt)),
+    false,
+    'saveDraft 返回的 recordedAt 不能是 Invalid Date',
+  );
+  assert.equal(result.recordedAt, JSON.parse(store.stats.writes[0].raw).recorded_at,
+    '返回值与落盘值必须是同一个时间戳');
+});
+
 // ---------------------------------------------------------------------------
 // M6-03 条件删除与清理范围
 // ---------------------------------------------------------------------------
@@ -422,6 +445,58 @@ test('M6-03 clearSessionDrafts 即使显式点名当前会话键，也不得误�
   assert.equal(readDraft(currentKey, store).content, '正在编辑');
 });
 
+test('M6-03 不得误删「其他文档」中已被云端覆盖的草稿', () => {
+  // ⚠ 这条与上面「只清本用户/本文档内旧会话」那条的**关键差别**：
+  //   上面的对照记录 content 是「别的文档」，与 cloud 的「已上云」不一致，
+  //   isCoveredByCloud 因此返回 false —— 那条记录**本来就不在可删集合里**，
+  //   删不删都与 scope 前缀无关，所以那条用例**检不出** docId 过滤失效。
+  //   这里让其他文档的记录**与云端完全一致**，它才真的可能被误删，
+  //   断言才真正约束了「scope 过滤必须含 docId」。
+  const store = makeStorage();
+  const root = { userId: USER_A, docId: DOC_1, sessionId: SESS_1 };
+  const cloud = { version: 9, title: '旧标题', content: '已上云' };
+
+  saveDraft(draftOf({ sessionId: SESS_2, title: cloud.title, content: cloud.content }), store);
+  saveDraft(draftOf({ docId: DOC_2, sessionId: SESS_2, title: cloud.title, content: cloud.content }), store);
+
+  const res = clearSessionDrafts(root, { cloud }, store);
+
+  assert.deepEqual(
+    res.removed,
+    [buildDraftKey({ userId: USER_A, docId: DOC_1, sessionId: SESS_2 })],
+    '只应删除本文档的那一条',
+  );
+  assert.equal(
+    listDrafts({ userId: USER_A, docId: DOC_2 }, store).length,
+    1,
+    '其他文档的草稿即使与云端一致也不得被删——scope 过滤必须含 docId',
+  );
+});
+
+test('M6-03 不得误删「其他账号」中已被云端覆盖的草稿', () => {
+  // 同上：其他账号的记录也必须**与云端完全一致**，
+  // 才构成对「scope 过滤必须含 userId」的有效检验。
+  const store = makeStorage();
+  const root = { userId: USER_A, docId: DOC_1, sessionId: SESS_1 };
+  const cloud = { version: 9, title: '旧标题', content: '已上云' };
+
+  saveDraft(draftOf({ sessionId: SESS_2, title: cloud.title, content: cloud.content }), store);
+  saveDraft(draftOf({ userId: USER_B, sessionId: SESS_2, title: cloud.title, content: cloud.content }), store);
+
+  const res = clearSessionDrafts(root, { cloud }, store);
+
+  assert.deepEqual(
+    res.removed,
+    [buildDraftKey({ userId: USER_A, docId: DOC_1, sessionId: SESS_2 })],
+    '只应删除本账号的那一条',
+  );
+  assert.equal(
+    listDrafts({ userId: USER_B }, store).length,
+    1,
+    '其他账号的草稿即使与云端一致也不得被删——scope 过滤必须含 userId',
+  );
+});
+
 test('M6-03 待写缓冲：cancel 后清理，定时器到点不会复活旧草稿', () => {
   const store = makeStorage();
   const clock = makeClock();
@@ -461,6 +536,25 @@ test('M6-03 待写缓冲：先 flush 落盘再清理，同样不留残留', () =
 // ---------------------------------------------------------------------------
 // M6-04 合并写入（可取消假时钟）与恢复分支回归
 // ---------------------------------------------------------------------------
+
+test('M6-04 合并窗口必须是 250 毫秒', () => {
+  // 契约 SYNC §9.4。上一条用例只验证了「窗口内合并、到点写一次」，
+  // 但**没有断言窗口长度本身**——把 250 改成 10，用例仍然全绿。
+  // 这里直接把常量钉死，避免合并窗口被无声改短（改短会显著增加写入次数）。
+  assert.equal(MERGE_WINDOW_MS, 250, '合并写入窗口必须是 250 毫秒');
+});
+
+test('M6-04 实际排入的延迟必须就是 250 毫秒（假时钟记录到的值）', () => {
+  // 上一条钉的是导出常量；这条钉的是**真的排进了延迟队列的那个值**，
+  // 防止出现「常量是 250、实际排入用别的值」这类不一致。
+  const store = makeStorage();
+  const clock = makeClock();
+  const writer = createDraftWriter({ storage: store, delay: clock.delay, clearDelay: clock.cancel });
+
+  writer.schedule(draftOf({ content: '一次输入' }));
+  assert.equal(clock.ids().length, 1, '应排入一个定时器');
+  assert.equal(clock.msOf(clock.ids()[0]), 250, '排入的延迟必须是 250 毫秒');
+});
 
 test('M6-04 窗口内连续三次输入只写一次，且落盘值为最后一次', () => {
   const store = makeStorage();
