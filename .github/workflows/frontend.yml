@@ -19,16 +19,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Run frontend draft unit tests when present
+
+      # 【2026-11-15 修正：指向当前 frontend/ 而非 W1 归档区】
+      #
+      # 原实现跑的是 `GPT_WORKSPACE/deliverables/收件/W1/M6/正式模块草案_frontend`
+      # —— 那是 W1 阶段 M6 的**归档副本**，与当前的 `frontend/` 无关。
+      # 结果是：W1 之后所有前端改动（api.js / drafts.js / editor.js /
+      # sync.js / app.js 及其全部测试）在这个 job 里**完全不被检查**。
+      #
+      # 本 job 定位为「草稿层专项测试」，与 ci.yml 的「frontend checks」
+      # （全量前端测试）互补而不重复。
+      - name: 安装前端依赖
+        run: npm ci --prefix frontend
+
+      - name: 草稿层专项测试
         shell: bash
         run: |
-          module_dir="GPT_WORKSPACE/deliverables/收件/W1/M6/正式模块草案_frontend"
-          test_file="$module_dir/tests/unit/drafts.test.js"
-          if [ -f "$test_file" ]; then
-            node --test "$test_file"
-          elif [ -d "$module_dir" ]; then
-            echo "::error::Frontend module exists but its required unit test file is missing."
-            exit 1
-          else
-            echo "Frontend draft module has not landed yet; tests are not applicable."
-          fi
+          set -e
+          for f in \
+            frontend/js/tests/drafts.test.js \
+            frontend/js/tests/drafts.w4.test.js \
+            frontend/js/tests/drafts.gap.test.js
+          do
+            if [ ! -f "$f" ]; then
+              echo "::error::缺少草稿层测试文件：$f"
+              exit 1
+            fi
+            echo "=== $f ==="
+            node --test "$f"
+          done

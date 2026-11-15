@@ -115,6 +115,159 @@ jobs:
             -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;" \
             -c "SELECT indexname FROM pg_indexes WHERE tablename='documents';"
 
+      # 断言式约束验证 + 零残留核对（必检）。
+      # 与上面的「核对迁移结果」不同：那个只看表和索引建出来了，这个逐条断言
+      # **约束真的按预期触发**——捕获 RETURNED_SQLSTATE 并与预期比较，
+      # 错误码不同或根本没报错都使整轮失败。
+      #
+      # 规范 §12：约束必须实测而非只看 SQL 定义。
+      # 脚本在单一 BEGIN/ROLLBACK 中运行夹具与检查，结束回滚，不污染业务表。
+      # 本地已于 PostgreSQL 17.11 实测：11/11 PASS，两遍可重复，零残留。
+      #
+      # 残留核对采用**跨检查取样**：BEFORE 取自检查执行之前，AFTER 取自之后。
+      # 若把 BEFORE 放在检查之后，两次取样必然相等，检测形同虚设。
+      # 用前后对比而非绝对值 0：public schema 将来若有种子数据，绝对 0 会误报失败。
+      - name: 断言式约束验证与零残留核对
+        env:
+          PGPASSWORD: ci_test_password
+        run: |
+          COUNT_SQL="SELECT (SELECT count(*) FROM users) || ',' || (SELECT count(*) FROM documents);"
+          BEFORE=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 -c "$COUNT_SQL")
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -f migrations/checks/run_checks.sql
+          AFTER=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 -c "$COUNT_SQL")
+          echo "before=${BEFORE} after=${AFTER}"
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "::error::约束验证脚本留下残留数据：before=${BEFORE} after=${AFTER}"
+            exit 1
+          fi
+
+      # ---------- W3 隔离回归（必检） ----------
+      #
+      # W3 回归在**独立临时 schema**（t_w3_ci_*）中执行冻结迁移 0001_init.sql，
+      # 不写 public、不依赖现有用户数据——这是与上面断言式验证的根本区别。
+      #
+      # 本地已于 PostgreSQL 17.11 实测：10/10 PASS，三遍可重复，
+      # public 预置数据时仍 10/10 且数据不变。
+      #
+      # 残留检测查两项（不能用 public.users —— W3 从不在 public 建表，
+      # 该表在此库中可能根本不存在，查它会直接报错）：
+      #   (a) 不存在残留的 t_w3_* 临时 schema；
+      #   (b) public 中若原本存在 users/documents，其行数前后一致。
+      #
+      # public 计数必须**先判存在再查**：不能把子查询写进 CASE 的 ELSE 分支，
+      # PostgreSQL 会提前解析该分支，即使走不到也报「关系 public.users 不存在」。
+      - name: W3 隔离回归
+        env:
+          PGPASSWORD: ci_test_password
+        run: |
+          W3_SCHEMA="t_w3_ci_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+
+          public_count() {
+            local has
+            has=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+              -c "SELECT CASE WHEN to_regclass('public.users') IS NULL THEN 'none' ELSE 'present' END;")
+            if [ "$has" = "none" ]; then echo "none"; return 0; fi
+            psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+              -c "SELECT (SELECT count(*) FROM public.users)::text || ',' || (SELECT count(*) FROM public.documents)::text;"
+          }
+
+          BEFORE=$(public_count)
+
+          # 主回归：必须成功且输出全部通过的标志。
+          #
+          # 注意：psql 的 NOTICE（RAISE NOTICE）输出到 **stderr**，不是 stdout。
+          # 若用 `| tee file`，日志只含 stdout，grep 必然找不到标志而误报失败。
+          # 故此处用 `> file 2>&1` 同时捕获两路。
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -v "w3_schema=${W3_SCHEMA}" \
+            -f migrations/checks/w3/run_w3_regression.sql \
+            > /tmp/w3_regression.log 2>&1
+          cat /tmp/w3_regression.log
+          grep -q "ALL W3 REGRESSION CHECKS PASSED" /tmp/w3_regression.log || {
+            echo "::error::W3 回归未输出 ALL W3 REGRESSION CHECKS PASSED"
+            exit 1
+          }
+
+          # 失败路径也可能留下 schema，这里兜底清理
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -c "DROP SCHEMA IF EXISTS \"${W3_SCHEMA}\" CASCADE;" >/dev/null
+
+          AFTER=$(public_count)
+          LEFT=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM pg_namespace WHERE nspname LIKE 't_w3%';")
+
+          echo "public before=${BEFORE} after=${AFTER}  残留 t_w3_* schema 数=${LEFT}"
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "::error::W3 回归改动了 public 数据：before=${BEFORE} after=${AFTER}"
+            exit 1
+          fi
+          if [ "$LEFT" != "0" ]; then
+            echo "::error::W3 回归留下 ${LEFT} 个临时 schema"
+            exit 1
+          fi
+
+      # ---------- W4 数据层回归（必检） ----------
+      #
+      # W4 验证现有 PostgreSQL CRUD 约束与 CAS 写入语义：
+      #   M2-01 唯一临时 schema / 前后行数一致 / 失败路径清理
+      #   M2-02 RESTRICT 23503、合法不存在 UUID 23503、非法 UUID 22P02
+      #   M2-03 owner+id+expected_version 原子更新 1 行 / 0 行
+      #   M2-05 同时间戳稳定分页、用户过滤、索引定义覆盖
+      #
+      # 本地已于 PostgreSQL 17.11 实测：11/11 PASS，两遍可重复，零残留。
+      #
+      # 两处实现要点（均为 M1 在接入时踩过并修复的坑）：
+      #   1. psql 的 NOTICE（RAISE NOTICE）输出到 **stderr**，不是 stdout。
+      #      用 `| tee file` 捕获日志会导致 grep 找不到成功标志而误报失败，
+      #      故此处用 `> file 2>&1` 同时捕获两路。
+      #   2. 残留检测不能查 `public.users` —— W4 从不在 public 建表，
+      #      该表在此库中可能根本不存在，查它会直接报错。
+      #      应查「无残留 t_w4_* schema」+「public 若有表则行数前后一致」。
+      - name: W4 数据层回归
+        env:
+          PGPASSWORD: ci_test_password
+        run: |
+          W4_SCHEMA="t_w4_ci_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+
+          public_count() {
+            local has
+            has=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+              -c "SELECT CASE WHEN to_regclass('public.users') IS NULL THEN 'none' ELSE 'present' END;")
+            if [ "$has" = "none" ]; then echo "none"; return 0; fi
+            psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+              -c "SELECT (SELECT count(*) FROM public.users)::text || ',' || (SELECT count(*) FROM public.documents)::text;"
+          }
+
+          BEFORE=$(public_count)
+
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -v "w4_schema=${W4_SCHEMA}" \
+            -f migrations/checks/w4/run_w4_regression.sql \
+            > /tmp/w4_regression.log 2>&1
+          cat /tmp/w4_regression.log
+          grep -q "ALL W4 REGRESSION CHECKS PASSED" /tmp/w4_regression.log || {
+            echo "::error::W4 回归未输出 ALL W4 REGRESSION CHECKS PASSED"
+            exit 1
+          }
+
+          psql -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -c "DROP SCHEMA IF EXISTS \"${W4_SCHEMA}\" CASCADE;" >/dev/null
+
+          AFTER=$(public_count)
+          LEFT=$(psql -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM pg_namespace WHERE nspname LIKE 't_w4%';")
+
+          echo "public before=${BEFORE} after=${AFTER}  残留 t_w4_* schema 数=${LEFT}"
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "::error::W4 回归改动了 public 数据：before=${BEFORE} after=${AFTER}"
+            exit 1
+          fi
+          if [ "$LEFT" != "0" ]; then
+            echo "::error::W4 回归留下 ${LEFT} 个临时 schema"
+            exit 1
+          fi
+
       # ---------- 必检 1/4：格式 ----------
       - name: cargo fmt --check
         run: cargo fmt --check
@@ -155,7 +308,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   # ------------------------------------------------------------------
-  # 前端草稿层检查
+  # 前端检查
   #
   # 规范 §11 把前端 JS 单列一类。drafts.js 是 M6 交付物，
   # 其六条硬约束（零 DOM、不读 token、存储注入）由测试保证。
@@ -163,9 +316,18 @@ jobs:
   # 【为什么本 job 不用 actions/setup-node】
   # 2026-10-21 实测：写 `cache: 'none'` 时 setup-node@v4 会报
   #   ##[error]Caching for 'none' is not supported
-  # 导致 job 在 5 秒内失败。本项目前端零运行时依赖（marked 与 DOMPurify
-  # 由 M5 阶段以本地文件方式引入），GitHub runner 已预装 Node，
+  # 导致 job 在 5 秒内失败。GitHub runner 已预装 Node，
   # 因此直接用 `node --test`，不引入 setup-node 步骤。
+  #
+  # 【2026-11-15 修正：必须 npm ci】
+  # 原注释称"本项目前端零运行时依赖，无需 npm install"——
+  # **该前提已不成立**：`package.json` 的 devDependencies 现有
+  # jsdom（`app.test.js` 需要它构造 DOM 环境）、
+  # marked 与 dompurify（`editor.security.test.js` 需要真实净化器）。
+  # 原 job 只跑 `drafts.test.js` 一个文件，
+  # 导致 M5 W4 交付的全部测试与 M1 W4 新增的 sync/app 测试
+  # **在 CI 上完全没有覆盖**。
+  # 现改为 `npm ci` + 跑全部前端测试。
   # ------------------------------------------------------------------
   frontend:
     name: frontend checks
@@ -179,9 +341,16 @@ jobs:
       - name: 显示 Node 版本
         run: node --version
 
-      # 无需 npm install：本项目前端零运行时依赖，测试直接用 node --test。
-      - name: 草稿层单元测试
-        run: node --test frontend/js/tests/drafts.test.js
+      # 依赖必须安装：devDependencies 里的 jsdom 是 app.test.js 的运行前提。
+      # 用 `npm ci` 而非 `npm install`：前者严格按 package-lock.json 安装，
+      # 保证 CI 与本机装到完全相同的版本。
+      - name: 安装前端依赖
+        run: npm ci --prefix frontend
+
+      # 跑**全部**前端测试：api / api.http / drafts / drafts.w4 / drafts.gap /
+      # editor.* / interop / sync / app。
+      - name: 前端全部单元测试
+        run: npm test --prefix frontend
 
       # 硬约束的机器校验：drafts.js 不得出现 DOM 操作。
       # 这条比人眼审阅可靠——M6 W1 就因直接操作 DOM 被判返工。
