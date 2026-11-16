@@ -432,6 +432,20 @@ mod tests {
     }
 
     #[test]
+    fn 不同合法摘要长度仍可校验() {
+        let params = Argon2Params {
+            output_len: 31,
+            ..Argon2Params::default()
+        };
+        let hash = hash_password(DEMO_PASSWORD, &params).expect("哈希生成不应失败");
+        assert!(verify_password(DEMO_PASSWORD, &hash).is_ok());
+        assert!(matches!(
+            verify_password("wrong-password-123", &hash),
+            Err(PasswordError::PasswordMismatch)
+        ));
+    }
+
+    #[test]
     fn 损坏格式与不兼容参数都不得归类为密码不匹配() {
         let good =
             hash_password(DEMO_PASSWORD, &Argon2Params::default()).expect("哈希生成不应失败");
@@ -444,8 +458,8 @@ mod tests {
                 Expected::Format,
             ),
             (
-                "摘要 Base64 被截断",
-                good[..good.len() - 1].to_owned(),
+                "摘要 Base64 含非法字符",
+                format!("{}!", &good[..good.len() - 1]),
                 Expected::Format,
             ),
             ("尾部多余字段", format!("{good}$extra"), Expected::Format),
