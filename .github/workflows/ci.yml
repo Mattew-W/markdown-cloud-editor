@@ -155,6 +155,19 @@ jobs:
             -c "SELECT count(*) FROM pg_namespace WHERE nspname = '$schema';")
           test "$remaining" = 0
 
+      - name: W4 isolated database regression
+        env:
+          PGPASSWORD: ci_test_password
+        run: |
+          schema="t_w4_ci_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          psql -X -h localhost -U postgres -d mce_test -v ON_ERROR_STOP=1 \
+            -v "w4_schema=$schema" -f migrations/checks/w4/run_w4_regression.sql > w4-regression.log 2>&1
+          cat w4-regression.log
+          grep -q 'ALL W4 REGRESSION CHECKS PASSED' w4-regression.log
+          remaining=$(psql -X -h localhost -U postgres -d mce_test -t -A -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM pg_namespace WHERE nspname = '$schema';")
+          test "$remaining" = 0
+
       # ---------- 必检 1/4：格式 ----------
       - name: cargo fmt --check
         run: cargo fmt --check

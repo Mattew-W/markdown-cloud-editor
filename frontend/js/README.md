@@ -193,12 +193,42 @@ npm run test:api      # 仅 api.js
 npm run test:log      # 生成 test-output.log（真实 TAP 原文）
 ```
 
-测试全部使用 mock fetch，**不访问真实后端**。超时用注入的可控时钟，**不会真的等 10 秒**。
+`api.test.js` 使用 mock fetch，**不访问真实后端**；`api.http.test.js`（M6 W3 新增）使用真实 HTTP 传输（`node:http` 127.0.0.1 随机端口），也**不访问外网**。两者超时都用注入的可控时钟，**不会真的等 10 秒**。
 
 覆盖：200/201/204、URL 构造、Bearer 位置、JSON body、九类 `code` 映射、两种 409、`serverVersion` 校验、`Retry-After` 保留、坏响应（HTML / 损坏 JSON / 未知 code / 401 无 JSON）、超时边界（9999ms 不中断、10000ms 中断）、四条路径的定时器清理、不自动重试、非法路径与序列化失败不发请求、ASCII 守卫。
 
 > **mock 的局限**：`URL.pathname` 断言无法验证请求最终发往哪个域。
 > 真实浏览器验证过一次：`new URL(path, 'http://dummy-base')` 会报 `ERR_NAME_NOT_RESOLVED`。
+
+### 5.1 真实 HTTP 传输回归测试（M6 W3 新增）
+
+`tests/api.http.test.js` 用 `node:http` 在 **127.0.0.1 随机端口**起真实服务，用 Node 自带全局 `fetch` 做真实传输，弥补 mock 无法覆盖的真实网络行为。运行：
+
+```sh
+node --test js/tests/api.http.test.js   # 仅真实 HTTP 传输测试
+npm test                                # 全部前端测试（含本文件）
+```
+
+客户端相对路径保持不变，测试注入 `fetchImpl` 把相对路径解析到本机测试地址（`http://127.0.0.1:<port>`）。
+
+| 场景 | 期望分类 |
+| --- | --- |
+| 实际请求路径为 `/api/v1/documents` | 断言服务端收到的 `req.url` |
+| `Authorization` 只在请求头 | 不进 URL |
+| JSON 请求体真实发送 | 带 `Content-Type: application/json` |
+| 400/404/500/429 错误响应 | 映射到对应错误类，`Retry-After` 保留 |
+| 返回 JSON 头 + 不完整正文后断开 | `NetworkError` |
+| 成功/错误响应正文读取超时 | `TimeoutError`（注入可控时钟，不真等 10 秒） |
+| 恶意畸形 JSON | `ProtocolError` |
+| 204 真实传输 | `null` |
+| 连接被拒（无服务监听） | `NetworkError` |
+
+> **为什么 mock 只查 `URL.pathname` 会掩盖真实目的地**：mock 的 fetch 收到的是
+> 一个假对象，`new URL(path, 'http://dummy-base')` 构造出的 `URL.pathname`
+> 恰好等于 `/api/v1/documents`，断言通过，但请求实际被发往不存在的 `dummy-base`
+> 外域，真实后端永远收不到。只有真实浏览器才暴露为 `net::ERR_NAME_NOT_RESOLVED`。
+> 因此传输层测试必须断言**服务端实际收到的请求路径**（如 `req.url`），
+> 而不是 mock 里传入对象的 `pathname`。
 
 ---
 

@@ -362,7 +362,16 @@ export function readDraft(key, storage) {
  * @returns {import('./types.js').DraftRecord[]} 按 recordedAt DESC 排序
  * @throws {DraftStorageError} reason 为 unavailable
  */
-export function listDrafts(scope, storage) {
+export function listDrafts(scopeOrUserId, storageOrDocId, maybeStorage) {
+  let scope;
+  let storage;
+  if (typeof scopeOrUserId === 'string') {
+    scope = { userId: scopeOrUserId, docId: storageOrDocId };
+    storage = maybeStorage;
+  } else {
+    scope = scopeOrUserId;
+    storage = storageOrDocId;
+  }
   const store = storage ?? defaultStorage();
   const scopePrefix = `${DRAFT_KEY_PREFIX}${encodeURIComponent(scope.userId)}:`;
 
@@ -422,8 +431,23 @@ export function listDrafts(scope, storage) {
  * @returns {boolean} true=已删除；false=核对未通过拒绝删除；草稿本不存在时返回 true（无可删）
  * @throws {DraftStorageError} reason 为 corrupt / unavailable
  */
-export function discardDraft(key, expected, storage) {
-  const store = storage ?? defaultStorage();
+export function discardDraft(keyOrOptions, expectedArg, storageArg) {
+  let key = keyOrOptions;
+  let expected = expectedArg;
+  let store = storageArg ?? defaultStorage();
+
+  if (typeof keyOrOptions === 'object' && keyOrOptions !== null && !expectedArg) {
+    key = buildDraftKey({
+      userId: keyOrOptions.userId,
+      docId: keyOrOptions.docId,
+      sessionId: keyOrOptions.sessionId,
+    });
+    expected = {
+      sessionId: keyOrOptions.sessionId,
+      localRevision: keyOrOptions.expectedRevision ?? keyOrOptions.localRevision,
+      content: keyOrOptions.expectedContent ?? keyOrOptions.content,
+    };
+  }
 
   let raw;
   try {
@@ -495,7 +519,24 @@ export function discardDraft(key, expected, storage) {
  * @returns {{removed: string[], kept: string[]}} 删除与保留的键
  * @throws {DraftStorageError}
  */
-export function clearSessionDrafts(parts, options, storage) {
+export function clearSessionDrafts(partsOrUserId, optionsOrDocId, storageOrSessionId, maybeOptions, maybeStorage) {
+  let parts;
+  let options;
+  let storage;
+  if (typeof partsOrUserId === 'string') {
+    parts = {
+      userId: partsOrUserId,
+      docId: optionsOrDocId,
+      sessionId: storageOrSessionId,
+    };
+    options = maybeOptions;
+    storage = maybeStorage;
+  } else {
+    parts = partsOrUserId;
+    options = optionsOrDocId;
+    storage = storageOrSessionId;
+  }
+
   // 兼容旧调用方式：clearSessionDrafts(parts, storage)
   let opts = options;
   let store = storage;
@@ -504,7 +545,7 @@ export function clearSessionDrafts(parts, options, storage) {
     opts = undefined;
   }
 
-  const { cloud, confirmedKeys } = opts ?? {};
+  const { cloud, confirmedKeys, force } = opts ?? {};
   const confirmed = new Set(Array.isArray(confirmedKeys) ? confirmedKeys : []);
   const useStore = store ?? defaultStorage();
   const prefix = `${DRAFT_KEY_PREFIX}${encodeURIComponent(parts.userId)}:${encodeURIComponent(parts.docId)}:`;
@@ -515,9 +556,10 @@ export function clearSessionDrafts(parts, options, storage) {
       const key = useStore.key(i);
       if (typeof key !== 'string' || !key.startsWith(prefix)) continue;
       const parsed = parseDraftKey(key);
-      if (parsed === null || parsed.sessionId === parts.sessionId) continue;
-      // 会话不同只是「可能残留」，需再按下述条件证明其确实可弃。
-      if (confirmed.has(key) || isCoveredByCloud(useStore, key, cloud)) {
+      if (parsed === null) continue;
+      if (!force && parsed.sessionId === parts.sessionId) continue;
+      // 会话不同只是「可能残留」，需再按下述条件证明其确实可弃；force 时强制清理
+      if (force || confirmed.has(key) || isCoveredByCloud(useStore, key, cloud)) {
         keys.push(key);
       }
     }
@@ -648,7 +690,13 @@ export function classifyRestore(draft, cloud) {
  *
  * 这不是新增能力，而是满足冻结契约行为要求的必要机制。
  *
- * @param {{storage?: StorageAdapter, now?: () => string, delay?: (fn: () => void, ms: number) => unknown}} [options]
+ * @param {{storage?: StorageAdapter, now?: () => string,
+ *          delay?: (fn: () => void, ms: number) => unknown,
+ *          clearDelay?: (handle: unknown) => void}} [options]
+ *   `delay` 与 `clearDelay` 必须成对注入。只注入 `delay` 而不注入取消函数时，
+ *   `flush()` / `flushAll()` / `cancel()` 取消不了注入时钟的句柄——旧定时器仍会到点触发，
+ *   把之后新排入的草稿**提前**写走。这是 M6-R19（假时钟必须模拟被模拟对象的完整语义）
+ *   在实现侧的对应要求。
  * @returns {{schedule: (draft: object) => void, flush: () => void, flushAll: () => void,
  *            cancel: () => void, pending: () => boolean}}
  */
@@ -656,6 +704,9 @@ export function createDraftWriter(options = {}) {
   const store = options.storage ?? defaultStorage();
   const now = options.now ?? isoNow;
   const delay = options.delay ?? ((fn, ms) => setTimeout(fn, ms));
+  // 取消必须走与 delay 同一套时钟：注入可控时钟时若仍调用全局 clearTimeout，
+  // 句柄根本不在全局时钟名下，取消是空操作。
+  const clearDelay = options.clearDelay ?? ((handle) => clearTimeout(handle));
 
   /** @type {object | null} 待写入的最新草稿 */
   let pendingDraft = null;
@@ -695,7 +746,7 @@ export function createDraftWriter(options = {}) {
     /** 切换文档前同步刷新，绕过合并窗口立即写一次。 */
     flush() {
       if (timer !== null) {
-        clearTimeout(timer);
+        clearDelay(timer);
         timer = null;
       }
       writeNow();
@@ -712,7 +763,7 @@ export function createDraftWriter(options = {}) {
       //
       // 「取消且不落盘」的语义已由 cancel() 提供，两者不该混同。
       if (timer !== null) {
-        clearTimeout(timer);
+        clearDelay(timer);
         timer = null;
       }
       // writeNow() 内部已把 pendingDraft 置空并写入存储，
@@ -724,7 +775,7 @@ export function createDraftWriter(options = {}) {
     /** 取消待写入的草稿，不落盘。 */
     cancel() {
       if (timer !== null) {
-        clearTimeout(timer);
+        clearDelay(timer);
         timer = null;
       }
       pendingDraft = null;
