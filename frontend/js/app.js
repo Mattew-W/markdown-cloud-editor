@@ -69,6 +69,7 @@ const state = {
   isRegisterMode: false,
   pendingConflict: null,
   pendingDraft: null,
+  sessionGeneration: 0,
 };
 
 // 1. 初始化编辑器组件
@@ -76,8 +77,8 @@ const editor = createEditor({
   titleInput: el.titleInput,
   contentInput: el.contentInput,
   previewElement: el.previewContainer,
-  parseMarkdown: (text) => (window.marked ? window.marked.parse(text) : text),
-  sanitizeHtml: (html) => (window.DOMPurify ? window.DOMPurify.sanitize(html) : html),
+  parseMarkdown: window.marked && window.DOMPurify ? (text) => window.marked.parse(text) : null,
+  sanitizeHtml: window.marked && window.DOMPurify ? (html) => window.DOMPurify.sanitize(html) : null,
 });
 
 // 2. 初始化同步引擎
@@ -196,13 +197,16 @@ function updateSyncBadge(syncState, payload = {}) {
 // 4. 文档管理逻辑
 async function loadDocumentList() {
   if (!state.token) return;
+  const token = state.token;
+  const generation = state.sessionGeneration;
 
   try {
     const data = await apiFetch('/documents?limit=100&offset=0', {
       method: 'GET',
-      token: state.token,
+      token,
     });
 
+    if (state.sessionGeneration !== generation) return;
     state.documents = data.documents || [];
     el.docCount.textContent = `${data.total || state.documents.length} 篇`;
     renderDocumentList();
@@ -242,6 +246,8 @@ function renderDocumentList() {
 
 async function openDocument(docId) {
   if (!state.token) return;
+  const token = state.token;
+  const generation = state.sessionGeneration;
 
   try {
     el.statusText.textContent = '正在载入文档…';
@@ -256,9 +262,10 @@ async function openDocument(docId) {
 
     const doc = await apiFetch(`/documents/${docId}`, {
       method: 'GET',
-      token: state.token,
+      token,
     });
 
+    if (state.sessionGeneration !== generation) return;
     state.currentDoc = doc;
     editor.setValues({ title: doc.title, content: doc.content });
     el.docInfo.textContent = `版本: v${doc.version}`;
@@ -358,40 +365,9 @@ async function deleteCurrentDocument() {
       token: state.token,
     });
 
-    // 清理草稿。
-    //
-    // 【修过的缺陷】原实现用 `clearSessionDrafts(..., { force: true })`。
-    // force 会跳过 `isCoveredByCloud` 的三重判定，
-    // 直接删掉该文档下**所有会话**的草稿 —— 包括**其他标签页尚未同步**的备份。
-    // 这与 SYNC.md §9.6 / §9.8 直接冲突。
-    //
-    // 现改为：先刷新待写缓冲，再**显式列出**该文档的草稿键逐个删除
-    // （confirmedKeys 是显式确认，不跨文档、不跨账号）。
+    // 保留本地草稿，供其他会话恢复或下载。
     syncEngine.flushDraft();
-    try {
-      const ownKeys = drafts.listDrafts({
-        userId: state.user.id,
-        docId: state.currentDoc.id,
-      }).map((d) =>
-        drafts.buildDraftKey({
-          userId: state.user.id,
-          docId: state.currentDoc.id,
-          sessionId: d.edit_session_id,
-        }),
-      );
-      if (ownKeys.length > 0) {
-        drafts.clearSessionDrafts(
-          {
-            userId: state.user.id,
-            docId: state.currentDoc.id,
-            sessionId: syncEngine.editSessionId,
-          },
-          { confirmedKeys: ownKeys },
-        );
-      }
-    } catch (error) {
-      console.warn('删除文档后清理草稿失败:', error);
-    }
+    syncEngine.destroy();
 
     state.currentDoc = null;
     editor.setValues({ title: '', content: '' });
@@ -438,11 +414,18 @@ el.btnConflictOverwrite.addEventListener('click', async () => {
 
 el.btnRestoreDraft.addEventListener('click', () => {
   if (state.pendingDraft) {
+    const conflict = drafts.classifyRestore(state.pendingDraft, state.currentDoc) === 'conflict';
+    if (conflict) syncEngine.setState(SyncState.CONFLICT);
     editor.setValues({
       title: state.pendingDraft.title,
       content: state.pendingDraft.content,
     });
     syncEngine.onInput(state.pendingDraft.title, state.pendingDraft.content);
+    if (conflict) {
+      const snapshot = syncEngine.captureSnapshot();
+      snapshot.expected_version = state.pendingDraft.base_version;
+      syncEngine.enterConflict(snapshot, state.currentDoc.version);
+    }
     el.draftBanner.classList.add('hidden');
     el.statusText.textContent = '已恢复本地草稿';
   }
@@ -485,6 +468,8 @@ function hideAuthModal() {
 
 el.btnAuthToggle.addEventListener('click', () => {
   if (state.token) {
+    if (!syncEngine.flushDraft()) return;
+    state.sessionGeneration += 1;
     // 退出登录。
     //
     // 【重要】必须先销毁同步引擎。
