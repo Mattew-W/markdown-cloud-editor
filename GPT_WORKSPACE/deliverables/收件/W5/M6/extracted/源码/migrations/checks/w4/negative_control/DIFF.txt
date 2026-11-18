@@ -1,0 +1,15 @@
+diff --git "a/.\\M2_W4_\346\235\216\345\255\220\346\234\250_20261115\\migrations\\checks\\w4\\regression.sql" "b/.\\M2_W4_\346\235\216\345\255\220\346\234\250_20261115\\migrations\\checks\\w4\\negative_control\\regression_wrong_expected.sql"
+index 9992d7e..2692819 100644
+--- "a/.\\M2_W4_\346\235\216\345\255\220\346\234\250_20261115\\migrations\\checks\\w4\\regression.sql"
++++ "b/.\\M2_W4_\346\235\216\345\255\220\346\234\250_20261115\\migrations\\checks\\w4\\negative_control\\regression_wrong_expected.sql"
+@@ -119,8 +119,8 @@ BEGIN
+ 
+     IF v_state = '00000' THEN
+         RAISE EXCEPTION 'W4 CHECK FAILED [user delete restricted]: DELETE succeeded; expected 23503';
+-    ELSIF v_state <> '23503' THEN
+-        RAISE EXCEPTION 'W4 CHECK FAILED [user delete restricted]: expected 23503, got % (%)',
++    ELSIF v_state <> '23505' THEN
++        RAISE EXCEPTION 'W4 CHECK FAILED [user delete restricted]: expected 23505, got % (%)',
+             v_state, v_message;
+     END IF;
+ 

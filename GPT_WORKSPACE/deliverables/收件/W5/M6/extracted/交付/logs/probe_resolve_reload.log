@@ -1,0 +1,14 @@
+[probe] resolveReload 前草稿条数 = 1
+丢弃本地草稿失败: DraftStorageError: 本地备份失败：浏览器禁止本地存储
+    at defaultStorage (<WORK>/frontend/js/drafts.js:100:13)
+    at Module.discardDraft (<WORK>/frontend/js/drafts.js:437:29)
+    at SyncEngine.resolveReload (<WORK>/frontend/js/sync.js:921:16)
+    at <WORK>/tools/probe_resolve_reload_storage.mjs:52:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  reason: 'unavailable',
+  detail: '当前环境没有 window'
+}
+[probe] resolveReload 后草稿条数 = 1
+[probe] 结论：清理未作用在注入存储上 —— resolveReload 未传 storage（缺口 F-01）

@@ -1,0 +1,71 @@
+# Compiled output
+/target/
+**/target/
+/dist/
+/build/
+node_modules/
+coverage/
+
+# 本地工具状态（WorkBuddy 工作记忆等），不入库
+.workbuddy/
+
+# 本机专属 Cargo 配置（含绝对磁盘路径，详见文件内注释）
+/.cargo/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# 临时构建与一次性验证目录（不进仓库）
+/Temp/
+/rustbuild/
+
+# 本地研究资料：保留在本地，不自动发布
+/*.docx
+/*_extracted.txt
+/PoPL课程项目深度研究报告.md
+/report_part*.md
+
+# 发布产物/收件区：默认不进仓库；*.md、*.txt 等文本记录除外
+# Git 规则：父目录被排除后，子文件无法用 ! 重新纳入；因此根目录用白名单
+GPT_WORKSPACE/deliverables/*
+!GPT_WORKSPACE/deliverables/README.md
+!GPT_WORKSPACE/deliverables/W1-*/
+!GPT_WORKSPACE/deliverables/收件/
+!GPT_WORKSPACE/deliverables/*.md
+!GPT_WORKSPACE/deliverables/*.txt
+
+# 收件区内部：只忽略 ZIP / docx 二进制，保留 md/txt/json/js/html/yml
+GPT_WORKSPACE/deliverables/收件/**/*.zip
+GPT_WORKSPACE/deliverables/收件/**/*.docx
+
+# 大二进制产物（ZIP、docx）永不入库
+*.zip
+GPT_WORKSPACE/deliverables/**/*.docx
+
+# Local databases and editor/OS files
+*.sqlite
+*.sqlite3
+*.db
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 前端测试运行日志：由 `npm run test:log` 生成，是可复现产物，不入库。
+# 真实 TAP 输出需要留证时，用检查记录.md 摘录关键行即可。
+frontend/test-output.log
+
+# W3 隔离回归的运行日志：由 run_w3_regression.ps1 生成（每次一个文件），
+# 属于可复现产物，不入库。需要留证时把关键行摘录进 docs/DATABASE.md §7.2。
+#
+# 只忽略仓库根的 /logs/，**不要**用全局 *.log —— 收件区（M4/M6 的原始日志）
+# 是任务书明确要求保留的真实证据，被误伤会导致证据链断裂。
+/logs/

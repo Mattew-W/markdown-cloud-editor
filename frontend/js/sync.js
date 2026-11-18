@@ -241,6 +241,14 @@ export class SyncEngine {
    * @param {{id: string, title?: string, content?: string, version?: number}} doc
    */
   initSession(userId, token, doc) {
+    // ⚠ 顺序约束（SYNC §8.1、M6 W5 缺口 F-03）：
+    //   切换文档/会话前**必须先 flush 待写缓冲**，再清定时器、最后换
+    //   docId / editSessionId。否则 250ms 合并窗口里的最后一批编辑会：
+    //     a) 被新文档的 schedule() 直接覆盖 pendingDraft → 从未落盘；
+    //     b) 或在定时器到点时以**新会话**的键写出 → 写错位置。
+    //   flush 必须发生在本方法改写 docId / editSessionId **之前**，
+    //   否则 draftWriter 会用新会话的键去写旧内容。
+    this.flushDraft();
     this.clearTimers();
 
     // 世代号自增：所有在途的旧响应自此失效。
@@ -918,11 +926,18 @@ export class SyncEngine {
           docId: this.docId,
           sessionId: this.editSessionId,
         });
-        drafts.discardDraft(draftKey, {
-          sessionId: this.editSessionId,
-          localRevision: this.localRevision,
-          content: this.currentContent,
-        });
+        // 必须传同一个 storage 适配器 —— 否则注入的存储与实际写入处不是同一个，
+        // 会去读默认存储（浏览器里是 localStorage，测试里是内存实现），
+        // 清理会落到别处，草稿留在原地（缺口 F-01，由 M6 W5 探针取证）。
+        drafts.discardDraft(
+          draftKey,
+          {
+            sessionId: this.editSessionId,
+            localRevision: this.localRevision,
+            content: this.currentContent,
+          },
+          this.storage,
+        );
       }
     } catch (error) {
       console.warn('丢弃本地草稿失败:', error);

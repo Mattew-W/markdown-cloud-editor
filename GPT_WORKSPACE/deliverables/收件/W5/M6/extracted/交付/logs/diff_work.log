@@ -1,0 +1,9 @@
+[diff] baseline 文件 = 104，工作副本文件 = 109
+[diff] 新增 = 5，修改 = 0，缺失 = 0
+  + frontend/js/tests/api.w5.http.test.js  8ab01279613103f9  19271 bytes
+  + frontend/js/tests/drafts.w5.integration.test.js  ef2121eae57ccb6f  14009 bytes
+  + frontend/js/tests/drafts.w5.test.js  edf8a689c96f220a  24512 bytes
+  + tools/probe_resolve_reload_storage.mjs  18fb74dee63886e7  2431 bytes
+  + tools/probe_switch_doc_draft_loss.mjs  ce32cdf3ed66edae  3159 bytes
+[diff] patch 写入 交付/M6_W5.diff.patch（1545 行）
+[verdict] 仅新增

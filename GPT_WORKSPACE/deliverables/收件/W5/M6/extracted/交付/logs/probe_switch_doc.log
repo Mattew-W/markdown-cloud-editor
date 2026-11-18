@@ -1,0 +1,4 @@
+[probe] 切换前 docA 草稿条数 = 0
+[probe] 切换并继续编辑后 docA 草稿条数 = 0
+[probe] 切换并继续编辑后 docB 草稿条数 = 1
+[probe] 结论：docA 的待写编辑从未落盘 —— initSession 未 flush 待写草稿（缺口 F-03）

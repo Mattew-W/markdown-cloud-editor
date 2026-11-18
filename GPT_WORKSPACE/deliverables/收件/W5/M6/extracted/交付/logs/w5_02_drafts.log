@@ -1,0 +1,120 @@
+TAP version 13
+# Subtest: M6-W5-02 草稿隔离与留存（实际键与读回值取证）
+    # Subtest: W5-02-a 同文档不同用户：键字符串不同，raw 记录与读回值各归其主
+    ok 1 - W5-02-a 同文档不同用户：键字符串不同，raw 记录与读回值各归其主
+      ---
+      duration_ms: 2.2755
+      type: 'test'
+      ...
+    # Subtest: W5-02-b 同用户不同文档：键的 doc 段不同，listDrafts 按 doc 过滤到实际记录
+    ok 2 - W5-02-b 同用户不同文档：键的 doc 段不同，listDrafts 按 doc 过滤到实际记录
+      ---
+      duration_ms: 0.4256
+      type: 'test'
+      ...
+    # Subtest: W5-02-c 匿名（无 userId）不产生可被登录账号读到的草稿
+    ok 3 - W5-02-c 匿名（无 userId）不产生可被登录账号读到的草稿
+      ---
+      duration_ms: 0.4344
+      type: 'test'
+      ...
+    # Subtest: W5-02-d 账号切换：后一个账号的写入不覆盖前一个账号的键
+    ok 4 - W5-02-d 账号切换：后一个账号的写入不覆盖前一个账号的键
+      ---
+      duration_ms: 0.2205
+      type: 'test'
+      ...
+    # Subtest: W5-02-e 等待中的写入在切换身份后只落到旧身份的键，不跨会话写进新键
+    ok 5 - W5-02-e 等待中的写入在切换身份后只落到旧身份的键，不跨会话写进新键
+      ---
+      duration_ms: 0.9251
+      type: 'test'
+      ...
+    # Subtest: W5-02-f 恢复分支采用云端后，待写缓冲不得把草稿复活
+    ok 6 - W5-02-f 恢复分支采用云端后，待写缓冲不得把草稿复活
+      ---
+      duration_ms: 0.6345
+      type: 'test'
+      ...
+    # Subtest: W5-02-g 清除计时器必须真正取消执行：到点后存储写入次数为 0
+    ok 7 - W5-02-g 清除计时器必须真正取消执行：到点后存储写入次数为 0
+      ---
+      duration_ms: 0.1357
+      type: 'test'
+      ...
+    # Subtest: W5-02-h 同一用户的遗留草稿按 recorded_at 倒序枚举，且损坏项单独标记
+    ok 8 - W5-02-h 同一用户的遗留草稿按 recorded_at 倒序枚举，且损坏项单独标记
+      ---
+      duration_ms: 0.3575
+      type: 'test'
+      ...
+    1..8
+ok 1 - M6-W5-02 草稿隔离与留存（实际键与读回值取证）
+  ---
+  duration_ms: 6.3734
+  type: 'suite'
+  ...
+# Subtest: M6-W5-03 条件删除（保存结果 × 快照匹配）
+    # Subtest: W5-03-a 保存成功且会话/修订/内容全匹配 → 才允许清理，键真的消失
+    ok 1 - W5-03-a 保存成功且会话/修订/内容全匹配 → 才允许清理，键真的消失
+      ---
+      duration_ms: 1.0119
+      type: 'test'
+      ...
+    # Subtest: W5-03-b 保存成功但期间产生新修订 → 拒绝清理，较新草稿留存且读回值是最新内容
+    ok 2 - W5-03-b 保存成功但期间产生新修订 → 拒绝清理，较新草稿留存且读回值是最新内容
+      ---
+      duration_ms: 0.2753
+      type: 'test'
+      ...
+    # Subtest: W5-03-b2 内容相同但修订号更新（用户改回原样）→ 以修订号为准，仍拒绝清理
+    ok 3 - W5-03-b2 内容相同但修订号更新（用户改回原样）→ 以修订号为准，仍拒绝清理
+      ---
+      duration_ms: 0.1239
+      type: 'test'
+      ...
+    # Subtest: W5-03-c 保存失败（未获云端基准）→ 一律不清理
+    ok 4 - W5-03-c 保存失败（未获云端基准）→ 一律不清理
+      ---
+      duration_ms: 0.1244
+      type: 'test'
+      ...
+    # Subtest: W5-03-d 409 语义：云端版本落后于草稿（较新草稿）→ 必须保留
+    ok 5 - W5-03-d 409 语义：云端版本落后于草稿（较新草稿）→ 必须保留
+      ---
+      duration_ms: 0.0951
+      type: 'test'
+      ...
+    # Subtest: W5-03-e 云端内容不同（含仅标题不同）→ 必须保留
+    ok 6 - W5-03-e 云端内容不同（含仅标题不同）→ 必须保留
+      ---
+      duration_ms: 0.1797
+      type: 'test'
+      ...
+    # Subtest: W5-03-f 快照匹配但属于其他会话/其他文档/其他账号 → 仍不得清理
+    ok 7 - W5-03-f 快照匹配但属于其他会话/其他文档/其他账号 → 仍不得清理
+      ---
+      duration_ms: 0.1612
+      type: 'test'
+      ...
+    # Subtest: W5-03-g 删除阶段的存储故障必须抛出可分类错误，不得静默返回 removed=[]
+    ok 8 - W5-03-g 删除阶段的存储故障必须抛出可分类错误，不得静默返回 removed=[]
+      ---
+      duration_ms: 0.2275
+      type: 'test'
+      ...
+    1..8
+ok 2 - M6-W5-03 条件删除（保存结果 × 快照匹配）
+  ---
+  duration_ms: 2.4111
+  type: 'suite'
+  ...
+1..2
+# tests 16
+# suites 2
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 120.7116

@@ -1,0 +1,71 @@
+TAP version 13
+# Subtest: apiFetch — 真实 HTTP 阶段（M6-W5-01）
+    # Subtest: W5-01-a 响应头先到、正文读取随后开始，两者都是可观察事件
+    ok 1 - W5-01-a 响应头先到、正文读取随后开始，两者都是可观察事件
+      ---
+      duration_ms: 34.3551
+      type: 'test'
+      ...
+    # Subtest: W5-01-b 非 JSON 错误体（text/html）绝不调用 response.json()，保留 status
+    ok 2 - W5-01-b 非 JSON 错误体（text/html）绝不调用 response.json()，保留 status
+      ---
+      duration_ms: 6.9717
+      type: 'test'
+      ...
+    # Subtest: W5-01-c 非 JSON 错误体在 400/404/500/503 下走同一映射（基类 + 原 status）
+    ok 3 - W5-01-c 非 JSON 错误体在 400/404/500/503 下走同一映射（基类 + 原 status）
+      ---
+      duration_ms: 16.1447
+      type: 'test'
+      ...
+    # Subtest: W5-01-c2 同样的状态码，JSON 错误体与非 JSON 错误体的映射必须一致分界
+    ok 4 - W5-01-c2 同样的状态码，JSON 错误体与非 JSON 错误体的映射必须一致分界
+      ---
+      duration_ms: 8.3993
+      type: 'test'
+      ...
+    # Subtest: W5-01-d 500 错误响应正文读取中途断连 → NetworkError（不是 ApiError/ProtocolError）
+    ok 5 - W5-01-d 500 错误响应正文读取中途断连 → NetworkError（不是 ApiError/ProtocolError）
+      ---
+      duration_ms: 40.664
+      type: 'test'
+      ...
+    # Subtest: W5-01-e 九类 error.code 在真实传输下由同一循环全部映射（含两种 409）
+    ok 6 - W5-01-e 九类 error.code 在真实传输下由同一循环全部映射（含两种 409）
+      ---
+      duration_ms: 24.0951
+      type: 'test'
+      ...
+    # Subtest: W5-01-f 挂起的正文读取在关闭测试服务后被真正清理（不靠定时器猜测阶段）
+    ok 7 - W5-01-f 挂起的正文读取在关闭测试服务后被真正清理（不靠定时器猜测阶段）
+      ---
+      duration_ms: 3.1243
+      type: 'test'
+      ...
+    # Subtest: W5-01-f2 正文读取超时后服务端与客户端都不留残余（定时器已清除、连接已断开）
+    ok 8 - W5-01-f2 正文读取超时后服务端与客户端都不留残余（定时器已清除、连接已断开）
+      ---
+      duration_ms: 3.114
+      type: 'test'
+      ...
+    # Subtest: W5-01-g 相对路径仍直传：真实请求路径带 /api/v1 且不访问外网
+    ok 9 - W5-01-g 相对路径仍直传：真实请求路径带 /api/v1 且不访问外网
+      ---
+      duration_ms: 2.8614
+      type: 'test'
+      ...
+    1..9
+ok 1 - apiFetch — 真实 HTTP 阶段（M6-W5-01）
+  ---
+  duration_ms: 141.0782
+  type: 'suite'
+  ...
+1..1
+# tests 9
+# suites 1
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 270.6768

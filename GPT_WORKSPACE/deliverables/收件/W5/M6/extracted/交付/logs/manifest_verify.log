@@ -1,0 +1,8 @@
+[env] 解压根 = <解压根>
+[env] 清单     = <解压根>/SHA256清单.txt
+[manifest] 原始字节 SHA256 = eefc7aef7c2c301995ac6e8b9c0205d93bd58d8d2c053289fb3b2c40f0fdc4ad
+[manifest] 换行归一(LF) SHA256 = eefc7aef7c2c301995ac6e8b9c0205d93bd58d8d2c053289fb3b2c40f0fdc4ad
+[result] 清单条目 = 109，已核对 = 109
+[result] 缺失 = 0
+[result] 指纹不符 = 0
+[verdict] PASS

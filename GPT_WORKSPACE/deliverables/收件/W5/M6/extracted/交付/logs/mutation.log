@@ -1,0 +1,38 @@
+== M1 非 JSON 错误体也按 JSON 解析 ==
+  not ok 2 - W5-01-b 非 JSON 错误体（text/html）绝不调用 response.json()，保留 status
+  not ok 3 - W5-01-c 非 JSON 错误体在 400/404/500/503 下走同一映射（基类 + 原 status）
+  not ok 4 - W5-01-c2 同样的状态码，JSON 错误体与非 JSON 错误体的映射必须一致分界
+  # pass 6
+  # fail 3
+  退出码 = 1（1 表示新增断言捕获了变异）
+  还原后 SHA256 = 089cc0e525192f06e9ac7f09034175c921a43c8a3f11cb61d55d16c8f8558aad
+  与基线一致 = True
+== M2 丢弃草稿时忽略修订号 ==
+  not ok 3 - W5-03-b2 内容相同但修订号更新（用户改回原样）→ 以修订号为准，仍拒绝清理
+  # pass 22
+  # fail 1
+  退出码 = 1（1 表示新增断言捕获了变异）
+  还原后 SHA256 = 1aa35e77d32b739c3af0b6b0f955a1dd3fc159b13d9822ab9f157a01debb6f15
+  与基线一致 = True
+== M3 历史草稿清理条件恒真 ==
+  not ok 4 - W5-03-c 保存失败（未获云端基准）→ 一律不清理
+  not ok 5 - W5-03-d 409 语义：云端版本落后于草稿（较新草稿）→ 必须保留
+  not ok 6 - W5-03-e 云端内容不同（含仅标题不同）→ 必须保留
+  # pass 13
+  # fail 3
+  退出码 = 1（1 表示新增断言捕获了变异）
+  还原后 SHA256 = 1aa35e77d32b739c3af0b6b0f955a1dd3fc159b13d9822ab9f157a01debb6f15
+  与基线一致 = True
+== M4 cancel 不清除定时器 ==
+  not ok 6 - W5-02-f 恢复分支采用云端后，待写缓冲不得把草稿复活
+  not ok 7 - W5-02-g 清除计时器必须真正取消执行：到点后存储写入次数为 0
+  # pass 21
+  # fail 2
+  退出码 = 1（1 表示新增断言捕获了变异）
+  还原后 SHA256 = 1aa35e77d32b739c3af0b6b0f955a1dd3fc159b13d9822ab9f157a01debb6f15
+  与基线一致 = True
+== 变异后全量复跑 ==
+  # tests 236
+  # pass 236
+  # fail 0
+  退出码 = 0
