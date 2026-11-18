@@ -333,7 +333,14 @@ describe('apiFetch — 真实 HTTP 阶段（M6-W5-01）', () => {
     const err = await apiFetch('/documents', { fetchImpl: eventFetch }).catch((e) => e);
     assert.equal(headersArrived, true, '必须先收到响应头，断连才发生在正文阶段');
     assert.ok(err instanceof NetworkError, `正文阶段断连应归 NetworkError，实际 ${err.constructor.name}`);
-    assert.ok(!(err instanceof ApiError) || err instanceof NetworkError);
+    // 「不得归 ApiError」这条**不能**写成 `!(err instanceof ApiError) || err instanceof NetworkError`：
+    // NetworkError extends ApiError（api.js:136），该式恒真，等于没断言。
+    // 真正要约束的是「不得归 ProtocolError」——它是「服务端不符合协议」的语义，
+    // 与「正文阶段连接中断」无关；归错会让上层按协议损坏分支处理。
+    assert.ok(
+      !(err instanceof ProtocolError),
+      `正文阶段断连不得归 ProtocolError，实际 ${err.constructor.name}`,
+    );
   });
 
   // ---------- W5-01-e 九类 error.code 同一循环 ----------

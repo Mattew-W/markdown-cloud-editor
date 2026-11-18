@@ -556,4 +556,42 @@ describe('M6-W5-03 条件删除（保存结果 × 快照匹配）', () => {
       '删除阶段失败必须抛 DraftStorageError(quota)，不得静默返回 removed=[]',
     );
   });
+
+  test('W5-03-h 单条 discardDraft 的删除故障必须抛出可分类错误，不得静默返回 true', () => {
+    // W5-03-g 覆盖的是 clearSessionDrafts（批量清理）的删除故障；
+    // 这里覆盖**单条** discardDraft —— 它是「删除某一条草稿」的唯一入口，
+    // 若它把错误吞掉并返回 true，调用方会以为这条草稿已丢弃，
+    // 实际它还躺在存储里，用户刷新后又会看到它。
+    const store = makeStorage();
+    const { key } = saveDraft(draftOf({ sessionId: SESS_2, content: '正文甲', localRevision: 2 }), store);
+
+    const brokenStore = {
+      get length() {
+        return store.length;
+      },
+      key: (i) => store.key(i),
+      getItem: (k) => store.getItem(k),
+      setItem: (k, v) => store.setItem(k, v),
+      removeItem: () => {
+        throw Object.assign(new Error('Quota exceeded.'), { name: 'QuotaExceededError' });
+      },
+    };
+
+    assert.throws(
+      () => discardDraft(
+        key,
+        { sessionId: SESS_2, localRevision: 2, content: '正文甲' },
+        brokenStore,
+      ),
+      (e) => e instanceof DraftStorageError && e.reason === 'quota',
+      '单条删除失败必须抛 DraftStorageError(quota)，不得静默返回 true',
+    );
+
+    // 原记录必须还在（不能因为抛错就顺手删掉或改写）
+    assert.equal(
+      store.map.has(key),
+      true,
+      '删除失败时原草稿必须原样保留',
+    );
+  });
 });

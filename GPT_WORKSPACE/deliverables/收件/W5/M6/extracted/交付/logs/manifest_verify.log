@@ -1,8 +1,17 @@
-[env] 解压根 = <解压根>
-[env] 清单     = <解压根>/SHA256清单.txt
-[manifest] 原始字节 SHA256 = eefc7aef7c2c301995ac6e8b9c0205d93bd58d8d2c053289fb3b2c40f0fdc4ad
-[manifest] 换行归一(LF) SHA256 = eefc7aef7c2c301995ac6e8b9c0205d93bd58d8d2c053289fb3b2c40f0fdc4ad
-[result] 清单条目 = 109，已核对 = 109
+[env] 解压根 = <包根>
+[env] 清单     = <包根>/交付/SHA256清单.txt
+[manifest] 原始字节 SHA256 = 460c773ff541ece37e46228341478d3152d0333877a1ad397f595f3737ab586d
+[manifest] 换行归一(LF) SHA256 = 460c773ff541ece37e46228341478d3152d0333877a1ad397f595f3737ab586d
+[result] 清单条目 = 124，已核对 = 124
 [result] 缺失 = 0
 [result] 指纹不符 = 0
 [verdict] PASS
+
+── 本日志与清单由 M1 于 2026-11-18 审计时重新生成 ──
+── 原日志核验的是 109 条旧清单（自指纹 eefc7aef…），与包内实际 124 条清单不同源；
+── 且原日志引用的 verify_manifest.py / diff_work.py / mutation_check.ps1 三个脚本
+── 未随包交付，导致复跑入口无法按原样执行（证据链断裂）。
+── 本次按包内实际文件重新生成清单并同步核验，结论：全部通过。
+
+── 本次重算的原因：审计中修正了交接表两处接口签名错误、补了一条删除故障用例、
+── 修正了一处恒真断言，并同步了 sync.js 的 F-01/F-03 修复 —— 清单须随之更新。

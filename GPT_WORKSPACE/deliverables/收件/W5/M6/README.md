@@ -1,7 +1,7 @@
 # M6 W5 收件
 
 **成员**：吴泽佳（**姓名待本人补齐**，学号 24406040201 待核对）　**收件日期**：2026-11-18
-**判定**：✅ **通过，可接收** —— 四条验收编号全部达标；**M1 已合入主项目并修复两处真实源码缺陷**
+**判定**：✅ **通过，可接收** —— 四条验收编号全部达标；**M1 已合入主项目并修复两处真实源码缺陷**；第三方审计提出的 5 项必修**已全部修复复验**
 
 ---
 
@@ -92,11 +92,34 @@ M1 实跑复现：docA 草稿 0 → 修复后 **1** 条。
 
 ---
 
+## 第三方审计交叉验证：5 项必修（已全部修复）
+
+判定一度下调为「有条件接收」，M1 修复复验后恢复为「通过」。
+
+| # | 级别 | 问题 | 处置 |
+|---|---|---|---|
+| M-1 | P0 | 交件内 `sync.js` 是缺陷形态 | 合入的 3 个测试文件不涉及 sync.js，修复未被回退；另出《合入前必读.md》警示「不可整目录覆盖」 |
+| **M-2** | **P0** | **交接表两处接口签名错误** | **已更正并加注**：①`readDraft` 损坏是**抛** `DraftStorageError('corrupt')` 不是返回 `null`；②`classifyRestore` 返回 **`'adopt_cloud'/'confirm'/'conflict'`**，没有 `keep_local`/`hidden` |
+| M-3 | P1 | 清单核验日志与交件不同源（109 vs 124 条） | **已重新生成清单与日志**，124/124 PASS，且**幂等** |
+| M-4 | P1 | `discardDraft` 单条删除的存储故障无覆盖 | **M1 补 `W5-03-h`** |
+| M-5 | P2 | `api.w5.http.test.js:336` 恒真断言 | **已改为** `!(err instanceof ProtocolError)`（`NetworkError extends ApiError`，原式恒真） |
+
+**M-2 是本次最有价值的一条**：它防的不是测试缺口，而是**错误契约被固化进主分支**。
+
+### 未采纳的两条建议
+
+| 建议 | 理由 |
+|---|---|
+| M-6 api.w5 补 5 个用例 | SyntaxError / 204 / server_version / Retry-After 在 `api.http.test.js`、`api.test.js` **已全覆盖**（204 有 16 处、server_version 13 处），补进 api.w5 只是重复 |
+| M-7 两身份并发缓冲 | **当前架构无法实现**：`createDraftWriter` 是单例、`pendingDraft` 是**单槽**。属架构事实，非测试缺口 |
+
+---
+
 ## 主项目测试
 
 ```
 > cd frontend && npm test
-# tests 239 / # suites 14 / # pass 239 / # fail 0
+# tests 240 / # suites 14 / # pass 240 / # fail 0
 EXIT 0
 ```
 
