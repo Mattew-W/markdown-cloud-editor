@@ -1,0 +1,14 @@
+M5 W5 实测环境记录
+记录时间: 2026-11-18 (UTC+8, Asia/Shanghai)
+操作系统: Windows (AMD64)
+Shell: PowerShell 7.6.4 (pwsh)
+Node.js: v22.23.2
+npm: 10.9.8
+浏览器(自动化实测): GAC 内置 Chromium / Chrome 147.0.0.0, Windows 10.0 Win64
+浏览器语言: zh-CN
+前端静态入口: http://127.0.0.1:8080/ (本地静态服务, 后端未联调)
+基线 HEAD: bfdf03806cb1cd5c9a6e31c651e9b4d2c32bd4a6 (2026-11-16 本地联调候选工作树)
+基线文件数: 104
+依赖安装: npm ci (added 39 packages, 退出码 0)
+基线回归: npm test → 204 pass / 0 fail / 0 skipped (退出码 0)
+W5 回归:  npm test → 217 pass / 0 fail / 0 skipped (退出码 0, 含本轮新增 13 条)

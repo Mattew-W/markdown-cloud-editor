@@ -1,0 +1,51 @@
+=== 环境 ===
+Node: v22.22.2
+OS: Windows win32 x64
+
+=== 命令 ===
+PS> node --test js/tests/app.state.w5.test.js
+
+=== 原始输出 ===
+TAP version 13
+# Subtest: M5-W5-03 可见状态：dirty 的徽标与状态栏文案，且不违反 §4.4 禁令
+ok 1 - M5-W5-03 可见状态：dirty 的徽标与状态栏文案，且不违反 §4.4 禁令
+  ---
+  duration_ms: 224.2956
+  type: 'test'
+  ...
+# Subtest: M5-W5-03 可见状态：conflict 状态有对应徽标文案
+ok 2 - M5-W5-03 可见状态：conflict 状态有对应徽标文案
+  ---
+  duration_ms: 1941.8469
+  type: 'test'
+  ...
+# Subtest: M5-W5-03 保存失败（存储不可用）：DOM 层可断言文案存在性，但完整失败条路径标为未执行
+ok 3 - M5-W5-03 保存失败（存储不可用）：DOM 层可断言文案存在性，但完整失败条路径标为未执行
+  ---
+  duration_ms: 60.974
+  type: 'test'
+  ...
+# Subtest: M5-W5-01 重复初始化：同一 DOM 节点上连续 createEditor 两次，一次 input 仍只回调一次
+ok 4 - M5-W5-01 重复初始化：同一 DOM 节点上连续 createEditor 两次，一次 input 仍只回调一次
+  ---
+  duration_ms: 24.1253
+  type: 'test'
+  ...
+# Subtest: M5-W5-01 销毁后监听器被移除：重复 destroy 幂等且不再响应输入
+ok 5 - M5-W5-01 销毁后监听器被移除：重复 destroy 幂等且不再响应输入
+  ---
+  duration_ms: 21.4751
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3798.0871
+
+=== 退出码 ===
+0

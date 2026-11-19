@@ -1,0 +1,45 @@
+=== 环境 ===
+Node: v22.22.2
+OS: Windows win32 x64
+
+=== 命令 ===
+PS> node --test js/tests/conflict.w5.test.js
+
+=== 原始输出 ===
+TAP version 13
+# Subtest: 冲突弹窗点「重新载入云端」：发出 GET /documents/{id}、更新编辑区与状态栏
+ok 1 - 冲突弹窗点「重新载入云端」：发出 GET /documents/{id}、更新编辑区与状态栏
+  ---
+  duration_ms: 214.181
+  type: 'test'
+  ...
+# Subtest: 冲突弹窗点「强制本地覆盖」：PUT 带 expected_version=serverVersion
+ok 2 - 冲突弹窗点「强制本地覆盖」：PUT 带 expected_version=serverVersion
+  ---
+  duration_ms: 1962.5342
+  type: 'test'
+  ...
+# Subtest: 基线冲突弹窗为两按钮接口，不含「取消」按钮（差异记录交 M1）
+ok 3 - 基线冲突弹窗为两按钮接口，不含「取消」按钮（差异记录交 M1）
+  ---
+  duration_ms: 31.8618
+  type: 'test'
+  ...
+# Subtest: 七状态徽标分支在源码中齐全（synced/dirty/saving/retry/auth/conflict/invalid）
+ok 4 - 七状态徽标分支在源码中齐全（synced/dirty/saving/retry/auth/conflict/invalid）
+  ---
+  duration_ms: 16.2494
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3714.6126
+
+=== 退出码 ===
+0
