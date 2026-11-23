@@ -1,6 +1,6 @@
 # M2 W3 isolated regression runner.
 # Creates a unique temporary schema, applies the frozen migration, runs the
-# selected regression entry, and always drops the schema in a finally block.
+# selected regression entry. Successful SQL entries drop their own schema.
 #
 # Examples:
 #   .\run_w3_regression.ps1 -Database mce_practice
@@ -83,13 +83,6 @@ catch {
     $exitCode = 1
 }
 finally {
-    try {
-        $cleanup = 'DROP SCHEMA IF EXISTS "' + $Schema + '" CASCADE;'
-        & $psqlExe -X -v ON_ERROR_STOP=1 -d $Database -c $cleanup | Out-Null
-    }
-    catch {
-        Write-Warning "Could not drop schema $Schema : $_"
-    }
 }
 
 Write-Host "W3 schema: $Schema"

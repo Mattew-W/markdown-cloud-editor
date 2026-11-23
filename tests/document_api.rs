@@ -151,7 +151,7 @@ macro_rules! build_app {
         let state = web::Data::new(AppState::new($pool));
         let auth_config = web::Data::new(AuthConfig {
             jwt_ttl_secs: 3600,
-            argon2_params: markdown_cloud_editor::auth::Argon2Params::default(),
+            ..Default::default()
         });
 
         test::init_service(
@@ -604,6 +604,109 @@ async fn 正文恰好在上限应通过() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::CREATED, "边界值应通过");
+}
+
+// ==================== 正文原样落库（装配层） ====================
+
+/// 正文含首尾空白时，**必须原样落库**（W2 规则对照 §1：「正文原样保留，
+/// 首尾空白、换行、制表符均不改动」）。
+///
+/// 为什么这条不能靠纯逻辑单测覆盖：`validate_content` 返回 `Result<(), AppError>`，
+/// 不返回正文，trim 行为在纯逻辑层**不可观测**。只有真正读写数据库才能证伪。
+///
+/// 鉴别力：若装配层改成 `update_atomic(..., raw_content.trim())`（M8 变异），
+/// 本用例读回的正文将缺少首尾空白 → 断言失败。
+#[actix_web::test]
+#[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
+async fn 正文含首尾空白时原样落库不被修剪() {
+    let pool = isolated_pool().await;
+    let app = build_app!(pool.clone());
+    let (_uid, token) = register_ok(&app, "alice").await;
+
+    // 首尾各 1 个空格，中间含换行与制表符。
+    let raw = "  正文\n\t  ";
+    let (id, _) = create_doc_ok(&app, &token, "标题", raw).await;
+
+    // 直接查数据库，绕过 HTTP 序列化，确保断言的是**落库值**。
+    let stored: (String,) = sqlx::query_as("SELECT content FROM documents WHERE id = $1")
+        .bind(uuid::Uuid::parse_str(&id).expect("id 应为 UUID"))
+        .fetch_one(&pool)
+        .await
+        .expect("应能查到文档");
+    assert_eq!(stored.0, raw, "正文必须原样落库，首尾空白不得被修剪");
+
+    // 再经 HTTP 详情读回，确认往返一致（JSON 编解码不吞空白）。
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/v1/documents/{id}"))
+        .insert_header(("Authorization", format!("Bearer {token}")))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(body["content"], raw, "详情读回的正文应与写入完全一致");
+}
+
+/// 标题与正文对空白的态度**相反**：标题存 trim 后值，正文存原样。
+/// 两条规则同时出现在一条用例里，可防止后续维护时把二者写反。
+#[actix_web::test]
+#[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
+async fn 标题存修剪后值而正文存原样() {
+    let pool = isolated_pool().await;
+    let app = build_app!(pool.clone());
+    let (_uid, token) = register_ok(&app, "alice").await;
+
+    let raw_title = "  我的标题  ";
+    let raw_content = "\t正文内容\n";
+    let (id, _) = create_doc_ok(&app, &token, raw_title, raw_content).await;
+
+    let row: (String, String) =
+        sqlx::query_as("SELECT title, content FROM documents WHERE id = $1")
+            .bind(uuid::Uuid::parse_str(&id).expect("id 应为 UUID"))
+            .fetch_one(&pool)
+            .await
+            .expect("应能查到文档");
+    assert_eq!(row.0, "我的标题", "标题应存 trim 后值");
+    assert_eq!(row.1, raw_content, "正文应存原样，不做 trim");
+}
+
+/// **更新路径**的正文原样落库验证（与创建路径分开覆盖）。
+///
+/// 为什么要分路径覆盖：创建走 `document_repo::insert(..., content)`，
+/// 更新走 `document_repo::update_atomic(..., raw_content)` —— 是**两个不同的落库点**。
+/// 只测创建路径时，把更新路径改成 `raw_content.trim()`（M8 变异）**测试仍会全绿**，
+/// 这正是「阶段定向变异 + 非阶段定向测试」导致漏检的典型情形（实测已复现）。
+#[actix_web::test]
+#[ignore = "需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行"]
+async fn 更新文档时正文原样落库不被修剪() {
+    let pool = isolated_pool().await;
+    let app = build_app!(pool.clone());
+    let (_uid, token) = register_ok(&app, "alice").await;
+
+    let (id, version) = create_doc_ok(&app, &token, "标题", "初始正文").await;
+
+    // 更新时正文带首尾空白
+    let raw = "  更新后的正文\n\t  ";
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/v1/documents/{id}"))
+        .insert_header(("Authorization", format!("Bearer {token}")))
+        .set_json(serde_json::json!({
+            "title": "  新标题  ",
+            "content": raw,
+            "expected_version": version
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::OK, "更新应返回 200");
+
+    // 查库断言落库值：正文原样，标题 trim
+    let row: (String, String) =
+        sqlx::query_as("SELECT title, content FROM documents WHERE id = $1")
+            .bind(uuid::Uuid::parse_str(&id).expect("id 应为 UUID"))
+            .fetch_one(&pool)
+            .await
+            .expect("应能查到文档");
+    assert_eq!(row.0, "新标题", "更新后标题应存 trim 后值");
+    assert_eq!(row.1, raw, "更新后正文必须原样落库，首尾空白不得被修剪");
 }
 
 #[actix_web::test]

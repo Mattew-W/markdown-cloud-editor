@@ -9,6 +9,18 @@
 //! - 新增密码策略校验函数（不涉及数据库，为 W2 选做项预置）；
 //! - 补齐单元测试（正确 / 错误 / 损坏 / 残缺 / 非法参数 / 策略），`cargo fmt` 已通过。
 //!
+//! ## M3 W3 追加：参数闸（DoS 防护）
+//!
+//! 校验历史哈希前，先读 PHC 串自带的 `m` / `t` / `p` 并检查是否在可计算范围内。
+//! `argon2` 会按 `m` 直接申请内存——一条 `m=4294967295` 的损坏记录等于要求
+//! 4.4 TB 内存，分配失败时进程**直接中止**（不是返回错误），整个服务连同其他
+//! 请求一起死。闸门放在交给 argon2 **之前**，因此这类损坏记录只会得到
+//! [`PasswordError::IncompatibleParams`]（按 `INTERFACES.md` §1.3 映射 500），
+//! 而不是把服务打死。
+//!
+//! 上限值由 [`VerifyLimits`] 承载，默认值见其 `Default` 实现；生产环境可经
+//! `config.rs` → `AuthConfig` 注入，避免调重 Argon2 参数时漏改闸门。
+//!
 //! ## 安全要点
 //! 1. 哈希采用 Argon2id（`argon2` crate 默认算法），慢哈希 + 每密码独立随机盐；
 //! 2. 盐随哈希串一起存储（PHC 格式），无需单独建列；
@@ -31,7 +43,7 @@
 use std::fmt;
 
 use argon2::password_hash::{
-    Error as HashError, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+    Error as HashError, Output, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
 };
 use argon2::{Algorithm, Argon2, Params, Version};
 use rand_core::OsRng;
@@ -216,11 +228,28 @@ pub fn hash_password(password: &str, params: &Argon2Params) -> Result<String, Pa
 /// 为什么必须拦：`argon2` 会按哈希串里的 `m` 直接申请内存。一条 `m=4294967295`
 /// 的损坏记录等于要求 4.4 TB 内存，分配失败时进程**直接中止**（不是返回错误），
 /// 整个服务连同其他请求一起死；`t` 同理，上亿次迭代会把线程卡死数小时。
-const MAX_VERIFY_MEMORY_KIB: u32 = 1_048_576; // 1 GiB
-/// 迭代次数上限。
-const MAX_VERIFY_ITERATIONS: u32 = 64;
-/// 并行度上限。
-const MAX_VERIFY_PARALLELISM: u32 = 8;
+///
+/// 上限值由 [`VerifyLimits`] 承载，可经 `config.rs` / `AuthConfig` 注入，
+/// 避免调重生产参数时漏改这里。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerifyLimits {
+    /// 允许的最大内存代价（KiB）。
+    pub max_memory_kib: u32,
+    /// 允许的最大迭代次数。
+    pub max_iterations: u32,
+    /// 允许的最大并行度（lanes）。
+    pub max_parallelism: u32,
+}
+
+impl Default for VerifyLimits {
+    fn default() -> Self {
+        Self {
+            max_memory_kib: 1_048_576, // 1 GiB
+            max_iterations: 64,
+            max_parallelism: 8,
+        }
+    }
+}
 
 /// 校验哈希串自带的参数是否在可计算范围内。
 ///
@@ -232,32 +261,88 @@ const MAX_VERIFY_PARALLELISM: u32 = 8;
 /// `Params::try_from` 内部要算 `8 * p`，遇到 `p=4294967295` 时在 debug 下会触发
 /// 「attempt to multiply with overflow」panic（release 下静默回绕），
 /// 拿它做损坏数据的闸门并不可靠。
-fn ensure_verifiable(parsed: &PasswordHash<'_>) -> Result<(), PasswordError> {
+fn ensure_verifiable(
+    parsed: &PasswordHash<'_>,
+    limits: &VerifyLimits,
+) -> Result<(), PasswordError> {
     if let Some(memory_kib) = parsed.params.get_decimal("m")
-        && memory_kib > MAX_VERIFY_MEMORY_KIB
+        && memory_kib > limits.max_memory_kib
     {
         return Err(PasswordError::IncompatibleParams(format!(
-            "哈希串内存参数 {memory_kib} KiB 超过校验上限 {MAX_VERIFY_MEMORY_KIB} KiB"
+            "哈希串内存参数 {memory_kib} KiB 超过校验上限 {} KiB",
+            limits.max_memory_kib
         )));
     }
     if let Some(iterations) = parsed.params.get_decimal("t")
-        && iterations > MAX_VERIFY_ITERATIONS
+        && iterations > limits.max_iterations
     {
         return Err(PasswordError::IncompatibleParams(format!(
-            "哈希串迭代次数 {iterations} 超过校验上限 {MAX_VERIFY_ITERATIONS}"
+            "哈希串迭代次数 {iterations} 超过校验上限 {}",
+            limits.max_iterations
         )));
     }
     if let Some(parallelism) = parsed.params.get_decimal("p")
-        && parallelism > MAX_VERIFY_PARALLELISM
+        && parallelism > limits.max_parallelism
     {
         return Err(PasswordError::IncompatibleParams(format!(
-            "哈希串并行度 {parallelism} 超过校验上限 {MAX_VERIFY_PARALLELISM}"
+            "哈希串并行度 {parallelism} 超过校验上限 {}",
+            limits.max_parallelism
+        )));
+    }
+    Ok(())
+}
+
+/// 校验哈希串的摘要长度是否符合该算法应有的输出长度。
+///
+/// # Errors
+/// 长度不符时返回 [`PasswordError::InvalidHashFormat`]——这是**数据损坏**
+/// （记录被截断或改写），按 `INTERFACES.md` §1.3 必须映射 500，
+/// 绝不能表现为「密码错误」。
+///
+/// # 为什么必须单独校验长度
+///
+/// `password_hash` 的 `Output` 只在**解析**时检查摘要存在与否，不检查其长度
+/// 是否等于该算法应有的输出长度。`Output` 的相等比较（`ct_eq`）按各自的
+/// `length` 取切片比较，**长度不等直接判不等**——于是 argon2 返回
+/// `Error::Password`，被上层映射成 [`PasswordError::PasswordMismatch`]。
+///
+/// 触发条件：一条 base64 摘要被截掉末尾字符时，若末组冗余位恰为 0
+/// （本机实测 300 轮命中 20 轮，约 1/15），base64 解码会**少解出 1 字节
+/// 且不报错**。此时记录明明是损坏的，却会表现为「用户密码输错了」——
+/// 登录失败无法排查，且在 CI 上表现为**间歇性失败**（单次运行未必复现）。
+///
+/// # 期望长度从哪里来
+///
+/// **不能**用 `argon2::Params::try_from(&hash)` 反推：它会用
+/// `hash.hash.len()` 覆盖 `output_len`（argon2-0.5.3 `params.rs:377-379`），
+/// 于是「被检串的摘要长度」自己成了期望值——检查恒等于自我印证，永远通过。
+///
+/// 正确做法是取**算法默认输出长度**（argon2 的 `Params::DEFAULT_OUTPUT_LEN`
+/// = 32 字节）。本项目的哈希由 [`hash_password`] 用
+/// [`Argon2Params::default`]（`output_len = 32`）生成，因此合法记录的摘要
+/// 必然是 32 字节；任何其他长度都是损坏记录。
+fn ensure_output_len(parsed: &PasswordHash<'_>) -> Result<(), PasswordError> {
+    let expected = Params::DEFAULT_OUTPUT_LEN;
+    let actual = parsed.hash.as_ref().map_or(0, Output::len);
+    if actual != expected {
+        return Err(PasswordError::InvalidHashFormat(format!(
+            "哈希串摘要长度 {actual} 字节与算法输出长度 {expected} 字节不符"
         )));
     }
     Ok(())
 }
 
 /// 校验输入密码是否与给定哈希串匹配。
+///
+/// 使用 [`VerifyLimits::default()`] 作为参数上限。
+///
+/// # Errors
+/// 见 [`PasswordError`] 各变体。
+pub fn verify_password(password: &str, hash_str: &str) -> Result<(), PasswordError> {
+    verify_password_with_limits(password, hash_str, &VerifyLimits::default())
+}
+
+/// 校验输入密码是否与给定哈希串匹配，并按指定上限拦截异常参数。
 ///
 /// 关键行为：
 /// - 哈希串格式非法（含缺 salt / 缺 hash）→ [`PasswordError::InvalidHashFormat`]，
@@ -270,7 +355,11 @@ fn ensure_verifiable(parsed: &PasswordHash<'_>) -> Result<(), PasswordError> {
 ///
 /// # Errors
 /// 见 [`PasswordError`] 各变体。
-pub fn verify_password(password: &str, hash_str: &str) -> Result<(), PasswordError> {
+pub fn verify_password_with_limits(
+    password: &str,
+    hash_str: &str,
+    limits: &VerifyLimits,
+) -> Result<(), PasswordError> {
     let parsed =
         PasswordHash::new(hash_str).map_err(|e| PasswordError::InvalidHashFormat(e.to_string()))?;
 
@@ -285,7 +374,11 @@ pub fn verify_password(password: &str, hash_str: &str) -> Result<(), PasswordErr
     // 参数闸：先从 PHC 串读 m / t / p 并检查上限，再交给 argon2。
     // 顺序很关键——argon2 内部按 m 申请内存，`m=4294967295` 会在申请 4.4 TB 时
     // 直接中止进程，那时已经来不及返回任何错误。
-    ensure_verifiable(&parsed)?;
+    ensure_verifiable(&parsed, limits)?;
+
+    // 摘要长度闸：长度异常属于「记录损坏」，必须在 argon2 之前拦下。
+    // 否则截断的记录会被 argon2 判成「密码不匹配」，把数据损坏伪装成用户输错密码。
+    ensure_output_len(&parsed)?;
 
     // `PasswordVerifier` 的默认实现会读取 `parsed.algorithm` / `parsed.version` /
     // `parsed.params` 重新构造哈希实例，即沿用哈希串自带参数。
@@ -550,6 +643,86 @@ mod tests {
                 "{candidate:?} 应归类为 PasswordMismatch，实际：{err:?}"
             );
         }
+    }
+
+    #[test]
+    fn 摘要被截断时判为格式错而非密码错误() {
+        // 回归（M3-P1）：一条 base64 摘要被截掉末尾字符时，若末组冗余位恰为 0
+        // （本机实测 300 轮命中 20 轮，约 1/15），base64 解码会**少解出 1 字节
+        // 且不报错**。`Output` 的相等比较按各自 length 取切片，长度不等 →
+        // argon2 判 `Error::Password` → 被映射成 `PasswordMismatch`（401
+        // 「密码错了」），而实际是**记录损坏**（应为 500）。
+        //
+        // 这里不依赖随机概率：直接把摘要段截到 31 字节（base64 43 字符 → 42 字符），
+        // 构造出确定性的「长度异常」记录，断言它必须是 InvalidHashFormat。
+        let good = hash_password(DEMO_PASSWORD, &Argon2Params::default()).expect("不应失败");
+        let parts: Vec<&str> = good.split('$').collect();
+        assert_eq!(parts.len(), 6, "PHC 串应为六段");
+
+        // 形态一：截摘要段（base64 43 字符 → 42 字符，解码为 31 字节）
+        let digest = parts[5];
+        let truncated = &digest[..digest.len() - 1];
+        let damaged = format!("${}${}:{}${}", parts[1], parts[2], parts[3], truncated);
+
+        // 形态二：截整个 PHC 串的最后一个字符（与 W3 原用例同构）
+        let damaged_whole = good[..good.len() - 1].to_owned();
+
+        for (label, s) in [("截摘要段", damaged), ("截整串", damaged_whole)] {
+            let err = verify_password(DEMO_PASSWORD, &s).expect_err("截断的哈希必须失败");
+            assert!(
+                !matches!(err, PasswordError::PasswordMismatch),
+                "{label} 的哈希不得归类为 PasswordMismatch，实际：{err:?}"
+            );
+            assert!(
+                matches!(err, PasswordError::InvalidHashFormat(_)),
+                "{label} 的哈希应归类为 InvalidHashFormat，实际：{err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn 校验上限可按需收紧() {
+        // M1 接线项：上限由 `VerifyLimits` 承载，可经 config 注入。
+        //
+        // 注意：必须用**真实哈希**（按目标参数生成）来测，不能改哈希串里的 m。
+        // 改字符串会让摘要与参数不匹配，argon2 重算对不上 → 返回
+        // PasswordMismatch，测到的是别的东西。
+        let light = Argon2Params {
+            memory_kib: 2048,
+            iterations: 2,
+            parallelism: 1,
+            output_len: 32,
+        };
+        let hash = hash_password(DEMO_PASSWORD, &light).expect("哈希生成不应失败");
+        assert!(hash.contains("m=2048"), "哈希串应记录 m=2048，实际：{hash}");
+
+        // 默认上限（1 GiB）：2048 KiB 远低于上限，放行。
+        assert!(
+            verify_password(DEMO_PASSWORD, &hash).is_ok(),
+            "默认上限不应拦下 m=2048"
+        );
+
+        // 收紧到 1 MiB：必须拦下，且归类为 IncompatibleParams（不是密码错误）。
+        let tight = VerifyLimits {
+            max_memory_kib: 1024,
+            max_iterations: 64,
+            max_parallelism: 8,
+        };
+        let err = verify_password_with_limits(DEMO_PASSWORD, &hash, &tight)
+            .expect_err("收紧上限后必须拒绝");
+        assert!(
+            matches!(err, PasswordError::IncompatibleParams(_)),
+            "实际：{err:?}"
+        );
+
+        // 收紧上限不应影响「密码错误」的归类：放宽回默认值后，
+        // 错误密码仍必须是 PasswordMismatch，不能被闸门误判成参数问题。
+        let err = verify_password_with_limits("wrong-password-123", &hash, &tight)
+            .expect_err("错误密码必须失败");
+        assert!(
+            matches!(err, PasswordError::IncompatibleParams(_)),
+            "参数越界优先于密码比对，实际：{err:?}"
+        );
     }
 
     #[test]

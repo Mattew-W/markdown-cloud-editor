@@ -221,8 +221,11 @@ export async function apiFetch(
     method = 'GET',
     token,
     body,
-    fetchImpl = globalThis.fetch,
-    timers = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout },
+    fetchImpl = (...args) => globalThis.fetch(...args),
+    timers = {
+      setTimeout: (callback, ms) => globalThis.setTimeout(callback, ms),
+      clearTimeout: (handle) => globalThis.clearTimeout(handle),
+    },
   } = {}
 ) {
   // ---------- 路径校验 ----------

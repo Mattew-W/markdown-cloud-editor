@@ -197,8 +197,8 @@
 
 | 接口 | 策略 | 超限响应 |
 |---|---|---|
-| `POST /auth/register` | 每 IP 每 `60` 秒 `5` 次 | `429` + `Retry-After: 60` |
-| `POST /auth/login` | 每 IP 每 `60` 秒 `5` 次 | `429` + `Retry-After: 60` |
+| `POST /auth/register` | 每 IP 每 `60` 秒 `5` 次 | `429` + `Retry-After`（剩余秒数，`1`–`60`） |
+| `POST /auth/login` | 每 IP 每 `60` 秒 `5` 次 | `429` + `Retry-After`（剩余秒数，`1`–`60`） |
 
 > `Retry-After` 客户端**必须**遵循（规范 §08）。
 

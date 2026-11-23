@@ -24,5 +24,5 @@ pub mod password;
 pub mod token;
 
 pub use extractor::AuthenticatedUser;
-pub use password::{Argon2Params, PasswordError};
+pub use password::{Argon2Params, PasswordError, VerifyLimits};
 pub use token::{Claims, TokenError, decode_token, issue_token};
