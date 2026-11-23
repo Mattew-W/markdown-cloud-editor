@@ -1,66 +1,40 @@
 # Markdown Cloud Editor
 
-Rust、PostgreSQL 与原生网页前端组成的云同步 Markdown 编辑器课程项目。
+这是一个基于 Rust、PostgreSQL 和原生网页前端的云同步 Markdown 编辑器课程项目。
 
-## 当前状态
+## 阶段进度
 
-仓库已包含 Rust API 基线、用户注册与登录、Argon2id 密码哈希、JWT 认证、PostgreSQL 迁移，以及前端本地草稿模块。文档 CRUD API、乐观锁写入、云端自动同步和完整编辑器界面仍在开发中；本仓库目前不是可直接部署的完整产品。
-
-| 已实现 | 进行中 |
+| 版本 | 当前范围 |
 |---|---|
-| Actix Web 服务与健康检查 | documents CRUD API |
-| 注册、登录与身份认证 | 版本冲突与并发保存 |
-| PostgreSQL 初始化迁移与约束验证 | 自动保存状态机与云端同步 |
-| 前端草稿存储模块及单元测试 | 完整编辑器 UI 和端到端验收 |
+| GitHub `main` · W3 | Actix Web API、注册和登录、文档 CRUD、版本冲突检查、PostgreSQL 迁移，以及前端 API 与草稿模块测试 |
+| W4 集成候选 | 自动保存、会话隔离、数据库回归与界面反馈候选。接线和浏览器验收进度见 [草稿 PR #13](https://github.com/Mattew-W/markdown-cloud-editor/pull/13) |
+| W5 联调 | 系统回归按成员任务包和指定的联调快照执行；本地入口见下方路径表 |
 
-具体接口约束和实现进度以 [API 契约](docs/API.md)、[数据库契约](docs/DATABASE.md) 和 [项目规范](docs/PROJECT_SPEC.md) 为准。
+## 本地开发
 
-## 快速开始
+1. 准备 Rust stable、PostgreSQL 17，以及前端 `package.json` 要求的 Node.js。
+2. 将 `.env.example` 复制为 `.env`，配置测试用数据库连接，并将 `JWT_SECRET` 换成至少 32 字节的随机值。
+3. 按 [PostgreSQL 开发说明](docs/LOCAL_POSTGRES.md) 创建数据库并应用迁移。
+4. 在仓库根目录执行 `cargo run --locked`。默认 API 地址为 `http://127.0.0.1:8080`，健康检查为 `/health`。
 
-### 环境要求
+```text
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked --all-targets
+cargo doc --locked --no-deps
+```
 
-- Cargo.toml 指定的 Rust 工具链
-- PostgreSQL 17
-- Node.js（运行前端模块检查）
+真实数据库集成测试需要独立测试库。设置 `TEST_DATABASE_URL` 后执行 `cargo test --locked --all-targets -- --ignored`。前端在 `frontend/` 下执行 `npm test`，若当前版本包含 `package-lock.json`，先执行 `npm ci`。
 
-### 启动 API
-
-1. 复制 .env.example 为 .env。
-2. 设置 DATABASE_URL，并将 JWT_SECRET 换成至少 32 字节的随机值。
-3. 创建本地数据库并按 [PostgreSQL 开发说明](docs/LOCAL_POSTGRES.md) 应用迁移。
-4. 在仓库根目录启动：
-
-        cargo run --locked
-
-默认地址为 http://127.0.0.1:8080。
-
-### 本地检查
-
-    cargo fmt --check
-    cargo clippy --locked --all-targets -- -D warnings
-    cargo test --locked --all-targets
-    cargo doc --locked --no-deps
-    node --test frontend/js/tests/drafts.test.js
-
-数据库集成测试需要专用的 PostgreSQL 17 测试库和 TEST_DATABASE_URL：
-
-    cargo test --locked --all-targets -- --ignored
-
-## W1 归档状态
-
-M1–M6 的 W1 归档索引在 [课程交件目录](GPT_WORKSPACE/deliverables/收件/W1/README.md)。目前已明确归档阶段汇报、收件件、审核结果和返工参考；新增公开副本中的个人身份信息和本机路径已脱敏。M1 汇报是历史快照，M2 收件时 SQL 未执行，M4 审核指出必做练习尚未完成，不能据此误读为六个模块均已通过。
-
-## 主要目录
+## 目录入口
 
 | 路径 | 内容 |
 |---|---|
-| src/ | Rust API、认证、错误处理、仓储与路由 |
-| frontend/js/ | 前端草稿模块及单元测试 |
-| migrations/ | PostgreSQL schema 与验证脚本 |
-| tests/ | API 和数据库集成测试 |
-| docs/ | 项目定义、接口契约、架构和开发环境说明 |
-| GPT_WORKSPACE/deliverables/ | 课程任务、收件、审核与返工归档 |
+| `src/`、`tests/` | Rust 服务及 API、真实数据库集成测试 |
+| `frontend/` | 浏览器端模块、静态页面与前端测试，内容随阶段版本变化 |
+| `migrations/` | PostgreSQL 迁移、约束核验和阶段回归脚本 |
+| `docs/` | [项目规范](docs/PROJECT_SPEC.md)、[API](docs/API.md)、[数据库](docs/DATABASE.md)、[接口](docs/INTERFACES.md)和[同步契约](docs/SYNC.md) |
+| `GPT_WORKSPACE/deliverables/` | 本地任务包、每周收件和审核索引；公开仓库保留部分阶段记录 |
+| `GPT_WORKSPACE/prompt-guides/` | 本地成员个性化提示词与历次复盘 |
 
-## 协作方式
-
-从最新 main 创建 feature/、fix/ 或 docs/ 分支，通过 Pull Request 合并；不要直接推送到 main。详细要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+从最新 `main` 创建工作分支，通过 Pull Request 提交。详见 [协作说明](CONTRIBUTING.md)。

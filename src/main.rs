@@ -52,6 +52,10 @@ async fn main() -> io::Result<()> {
 
     let state = web::Data::new(AppState::new(pool));
     let auth_config = web::Data::new(AuthConfig::from(&config));
+    let rate_limiter = web::Data::new(markdown_cloud_editor::middleware::RateLimiter::new(
+        markdown_cloud_editor::config::AUTH_RATE_LIMIT_MAX_ATTEMPTS as usize,
+        markdown_cloud_editor::config::AUTH_RATE_LIMIT_WINDOW_SECS,
+    ));
     let bind_addr = config.bind_addr.clone();
 
     tracing::info!(%bind_addr, jwt_ttl_secs = config.jwt_ttl_secs, "starting HTTP server");
@@ -67,6 +71,7 @@ async fn main() -> io::Result<()> {
             .app_data(state.clone())
             .app_data(web::Data::new(config.clone()))
             .app_data(auth_config.clone())
+            .app_data(rate_limiter.clone())
             .wrap(RequestIdLayer)
             .configure(configure_app)
     })

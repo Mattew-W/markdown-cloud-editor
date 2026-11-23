@@ -215,7 +215,7 @@ macro_rules! build_app {
         let state = web::Data::new(AppState::new($pool));
         let auth_config = web::Data::new(AuthConfig {
             jwt_ttl_secs: 3600,
-            argon2_params: markdown_cloud_editor::auth::Argon2Params::default(),
+            ..Default::default()
         });
 
         test::init_service(

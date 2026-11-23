@@ -15,6 +15,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::auth::password::PasswordError;
 use crate::error::AppError;
 
 /// 用户名最小长度（字符）。
@@ -192,10 +193,18 @@ pub fn user_response(id: Uuid, username: &str, created_at: &str) -> UserResponse
 ///
 /// 最后一行最容易写错：`PasswordError::InvalidHashFormat` 绝不能映射成 401，
 /// 那会让数据损坏伪装成"密码错了"。
+///
+/// 本函数回答"这个密码错误算谁的锅"：**只有 [`PasswordError::PasswordMismatch`]
+/// 是客户端责任**（密码打错了）；其余（哈希串损坏 / 参数不兼容 / 计算失败 /
+/// 参数非法）都是服务端问题，应记 500 与告警，而不是记成用户失误。
+///
+/// > 修复记录：2026-11-15，此函数原先无参数且恒返回 `true`，
+/// > 与其上方"仅 `PasswordMismatch` 属客户端"的注释自相矛盾。
+/// > 一旦被接入日志或指标，服务端数据损坏会被误计为"客户端问题"，影响告警与统计。
+/// > 现改为按错误变体判定；原调用点为零，故无破坏性影响。
 #[must_use]
-pub const fn password_error_is_client_fault() -> bool {
-    // PasswordMismatch 才是真正的"密码错了"；其余都是服务端问题。
-    true
+pub const fn password_error_is_client_fault(error: &PasswordError) -> bool {
+    matches!(error, PasswordError::PasswordMismatch)
 }
 
 /// 该模块的规范常量自检，确保与文档一致。
@@ -290,6 +299,27 @@ mod tests {
             password: String::new(),
         };
         assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn 只有密码不匹配才算客户端责任() {
+        // 回归：此函数曾无参数且恒返回 true，与"仅 PasswordMismatch 属客户端"的
+        // 注释自相矛盾——一旦接入指标，服务端数据损坏会被误计为用户失误。
+        assert!(password_error_is_client_fault(
+            &PasswordError::PasswordMismatch
+        ));
+        assert!(!password_error_is_client_fault(
+            &PasswordError::InvalidHashFormat("x".to_owned())
+        ));
+        assert!(!password_error_is_client_fault(
+            &PasswordError::IncompatibleParams("x".to_owned())
+        ));
+        assert!(!password_error_is_client_fault(
+            &PasswordError::HashingFailed("x".to_owned())
+        ));
+        assert!(!password_error_is_client_fault(
+            &PasswordError::InvalidParams("x".to_owned())
+        ));
     }
 
     #[test]
