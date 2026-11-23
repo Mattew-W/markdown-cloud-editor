@@ -190,10 +190,10 @@ export class SyncEngine {
     this.storageFailure = null;
 
     this.timers = options.timers ?? {
-      setTimeout: globalThis.setTimeout,
-      clearTimeout: globalThis.clearTimeout,
+      setTimeout: (callback, ms) => globalThis.setTimeout(callback, ms),
+      clearTimeout: (handle) => globalThis.clearTimeout(handle),
     };
-    this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    this.fetchImpl = options.fetchImpl ?? ((...args) => globalThis.fetch(...args));
     this.random = options.random ?? Math.random;
     this.storage = options.storage;
 
