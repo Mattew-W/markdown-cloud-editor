@@ -450,7 +450,7 @@ test('M1-04 网络错误先核对云端再处置（不得盲重发 PUT）', asyn
     { status: 200, body: { id: 'doc1', title: 'T', content: 'C1', version: 2 } },
     { status: 200, body: { id: 'doc1', version: 3 } },
   ];
-  const { engine, clock, fetchImpl } = makeEngine({ plan });
+  const { engine, clock, fetchImpl, states } = makeEngine({ plan });
   engine.initSession('u1', 'tok', { id: 'doc1', title: 'T', content: 'C', version: 1 });
 
   engine.onInput('T', 'C1');
@@ -468,6 +468,8 @@ test('M1-04 网络错误先核对云端再处置（不得盲重发 PUT）', asyn
 
   assert.equal(fetchImpl.calls.length, 2, '第二次调用应是 GET 核对');
   assert.equal(fetchImpl.calls[1].method, 'GET', '必须先 GET 核对，不能盲重发 PUT');
+  assert.ok(states.some(({ state, payload }) => state === 'onSaveSuccess' && payload.version === 2),
+    '确认原快照后须向应用公布真实版本');
   assert.equal(engine.baseVersion, 2, '分支 ①：应采纳读取到的版本');
   assert.equal(engine.state, SyncState.DIRTY, '核对仅确认原快照，新内容仍待保存');
   clock.tick(1600);

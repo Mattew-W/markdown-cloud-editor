@@ -12,6 +12,8 @@ import { createEditor } from './editor.js';
 import { SyncEngine, SyncState } from './sync.js';
 import * as drafts from './drafts.js';
 
+const DOCUMENT_PAGE_SIZE = 100;
+
 // DOM 元素引用
 const el = {
   titleInput: document.getElementById('docTitle'),
@@ -66,6 +68,9 @@ const state = {
   token: null,      // JWT string
   currentDoc: null, // { id, title, content, version }
   documents: [],    // Document summaries
+  documentPage: 0,
+  documentTotal: 0,
+  documentListRequest: 0,
   isRegisterMode: false,
   pendingConflict: null,
   pendingDraft: null,
@@ -214,20 +219,28 @@ function updateSyncBadge(syncState, payload = {}) {
 }
 
 // 4. 文档管理逻辑
-async function loadDocumentList() {
+async function loadDocumentList(page = state.documentPage) {
   if (!state.token) return;
   const token = state.token;
   const generation = state.sessionGeneration;
+  const request = ++state.documentListRequest;
+  const offset = page * DOCUMENT_PAGE_SIZE;
 
   try {
-    const data = await apiFetch('/documents?limit=100&offset=0', {
+    const data = await apiFetch(`/documents?limit=${DOCUMENT_PAGE_SIZE}&offset=${offset}`, {
       method: 'GET',
       token,
     });
 
-    if (state.sessionGeneration !== generation) return;
+    if (state.sessionGeneration !== generation || state.documentListRequest !== request) return;
+    const lastPage = Math.max(0, Math.ceil(data.total / DOCUMENT_PAGE_SIZE) - 1);
+    if (page > lastPage) {
+      await loadDocumentList(lastPage);
+      return;
+    }
+    state.documentPage = page;
     state.documents = data.documents || [];
-    el.docCount.textContent = `${data.total || state.documents.length} 篇`;
+    state.documentTotal = data.total ?? state.documents.length;
     renderDocumentList();
   } catch (err) {
     console.error('加载文档列表失败:', err);
@@ -236,6 +249,7 @@ async function loadDocumentList() {
 
 function renderDocumentList() {
   el.docList.innerHTML = '';
+  el.docCount.textContent = `${state.documentTotal} 篇`;
   if (state.documents.length === 0) {
     el.docList.innerHTML = '<li class="doc-item placeholder">暂无文档，点击“新建文档”开始编写</li>';
     return;
@@ -261,6 +275,23 @@ function renderDocumentList() {
     li.addEventListener('click', () => openDocument(doc.id));
     el.docList.appendChild(li);
   });
+
+  if (state.documentTotal > DOCUMENT_PAGE_SIZE) {
+    const navigation = document.createElement('li');
+    navigation.className = 'doc-pagination';
+    const page = state.documentPage;
+    const totalPages = Math.ceil(state.documentTotal / DOCUMENT_PAGE_SIZE);
+    for (const [label, target] of [['上一页', page - 1], ['下一页', page + 1]]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-sm';
+      button.textContent = label;
+      button.disabled = target < 0 || target >= totalPages;
+      button.addEventListener('click', () => loadDocumentList(target));
+      navigation.appendChild(button);
+    }
+    el.docList.appendChild(navigation);
+  }
 }
 
 async function openDocument(docId) {
@@ -531,6 +562,8 @@ el.btnAuthToggle.addEventListener('click', () => {
     state.pendingConflict = null;
     state.pendingDraft = null;
     state.documents = [];
+    state.documentPage = 0;
+    state.documentTotal = 0;
 
     // 令牌存 sessionStorage 而非 localStorage（docs/API.md §7）：
     // localStorage 跨标签页持久化，放大 XSS 暴露面与令牌寿命。

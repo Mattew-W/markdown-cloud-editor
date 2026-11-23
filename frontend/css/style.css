@@ -375,6 +375,13 @@ body {
 .badge-retry { background: #fce8e6; color: #c5221f; }
 .badge-invalid { background: #fce8e6; color: #c5221f; }
 
+.doc-pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
 .btn-danger {
   background: var(--danger);
   color: #fff;

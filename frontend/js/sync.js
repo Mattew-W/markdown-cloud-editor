@@ -810,6 +810,7 @@ export class SyncEngine {
         this.ackedRevision = snapshot.savingRevision;
         this.retryAttempt = 0;
         this.discardOwnDraft(snapshot);
+        this.callbacks.onSaveSuccess(cloud);
 
         if (this.localRevision > this.ackedRevision) {
           // 本地又有新编辑 —— 继续保持 dirty（§6.2 分支 ①）。

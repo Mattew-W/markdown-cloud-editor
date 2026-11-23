@@ -118,6 +118,30 @@ test('退出后的旧列表响应不能显示文档', async () => {
   dom.window.close();
 });
 
+test('文档列表可以打开超过首屏 100 条的文档', async () => {
+  const older = { ...doc, id: 'older', title: '第 101 篇', content: '历史内容' };
+  const dom = await setup('list-pagination', async (url) => {
+    if (url === '/api/v1/documents?limit=100&offset=0') {
+      const documents = Array.from({ length: 100 }, (_, index) => ({ ...doc, id: `recent-${index}` }));
+      return response({ documents, total: 101 });
+    }
+    if (url === '/api/v1/documents?limit=100&offset=100') {
+      return response({ documents: [older], total: 101 });
+    }
+    return response(url.endsWith('/older') ? older : doc);
+  });
+  const next = document.querySelector('.doc-pagination button:last-child');
+  assert.ok(next && !next.disabled);
+  next.click();
+  await tick();
+  assert.equal(document.querySelector('.doc-item-title').textContent, '第 101 篇');
+  document.querySelector('.doc-item').click();
+  await tick(); await tick();
+  assert.equal(document.getElementById('docContent').value, '历史内容');
+  document.getElementById('btnAuthToggle').click();
+  dom.window.close();
+});
+
 test('净化库缺失时预览只显示文本', async () => {
   const dom = await setup('preview', async (url) => baseResponse(url));
   const input = document.getElementById('docContent');
