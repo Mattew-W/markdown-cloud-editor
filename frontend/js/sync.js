@@ -685,25 +685,13 @@ export class SyncEngine {
     } else if (err instanceof RateLimitedError) {
       // §7.2：429 遵循响应头 Retry-After，不用退避表。
       //
-      // 注意：`api.js` 刻意**保留原始头字符串**（"45"），
-      // 解析责任在本层。若直接用 `Number.isFinite(err.retryAfter)` 判断，
-      // 字符串会被判为非有限值而退回退避表 —— 于是 1 秒后就重试，
-      // **持续违反服务端的限流窗口**。故必须先转成数字。
-      const seconds =
-        typeof err.retryAfter === 'string'
-          ? Number.parseInt(err.retryAfter, 10)
-          : Number(err.retryAfter);
-      const waitMs =
-        Number.isFinite(seconds) && seconds > 0
-          ? seconds * 1000
-          : this.nextBackoffDelay();
       this.setState(SyncState.RETRY_WAIT, {
         message: '请求过于频繁，稍后重试',
         storageOk: this.storageFailure === null,
       });
       this.scheduleRetry(async () => {
         await this.retryWithSnapshot(snapshot);
-      }, waitMs);
+      }, this.retryAfterDelay(err.retryAfter));
     } else {
       // 网络错误 / 超时 / 5xx：**结果未知**，按 §6 四分支先核对云端再处置。
       this.setState(SyncState.RETRY_WAIT, {
@@ -768,6 +756,13 @@ export class SyncEngine {
     this.retryAttempt += 1;
     const jitter = base * JITTER_RATIO * this.random();
     return Math.round(base + jitter);
+  }
+
+  retryAfterDelay(header) {
+    const seconds = Number(header);
+    return Number.isFinite(seconds) && seconds > 0
+      ? seconds * 1000
+      : this.nextBackoffDelay();
   }
 
   /**
@@ -872,14 +867,15 @@ export class SyncEngine {
         return;
       }
 
-      // §6.5：读取也失败 —— 继续保持未确认状态，按退避表重试读取。
+      // 继续核对原快照。读取被限流时等待服务端给出的期限。
+      const rateLimited = readError instanceof RateLimitedError;
       this.setState(SyncState.RETRY_WAIT, {
-        message: '网络中断，已在本地备份，稍后重试',
+        message: rateLimited ? '请求过于频繁，稍后重试' : '网络中断，已在本地备份，稍后重试',
         storageOk: this.storageFailure === null,
       });
       this.scheduleRetry(async () => {
         await this.reconcile(snapshot);
-      }, this.nextBackoffDelay());
+      }, rateLimited ? this.retryAfterDelay(readError.retryAfter) : this.nextBackoffDelay());
     }
   }
 

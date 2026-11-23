@@ -226,7 +226,7 @@ where
 pub struct RequestIdValue(pub String);
 
 // ---------------------------------------------------------------------------
-// 内存 IP 滑动窗口限流器 (严格对齐 API.md §06)
+// 内存 IP 固定窗口限流器 (API.md §06)
 // ---------------------------------------------------------------------------
 
 use std::collections::HashMap;
@@ -240,9 +240,14 @@ struct ClientRecord {
     window_start: Instant,
 }
 
-/// 基于 IP 的滑动窗口速率限制器
+struct RateLimitState {
+    records: HashMap<IpAddr, ClientRecord>,
+    last_cleanup: Instant,
+}
+
+/// 基于 IP 的固定窗口速率限制器，窗口从该客户端的首个请求开始。
 pub struct RateLimiter {
-    records: Mutex<HashMap<IpAddr, ClientRecord>>,
+    state: Mutex<RateLimitState>,
     max_requests: usize,
     window_duration: Duration,
 }
@@ -252,7 +257,10 @@ impl RateLimiter {
     #[must_use]
     pub fn new(max_requests: usize, window_secs: u64) -> Self {
         Self {
-            records: Mutex::new(HashMap::new()),
+            state: Mutex::new(RateLimitState {
+                records: HashMap::new(),
+                last_cleanup: Instant::now(),
+            }),
             max_requests,
             window_duration: Duration::from_secs(window_secs),
         }
@@ -260,13 +268,22 @@ impl RateLimiter {
 
     /// 检查并记录请求。若超限返回建议等待的秒数；若通过返回 None
     pub fn check(&self, ip: IpAddr) -> Option<u64> {
-        let mut map = self
-            .records
+        self.check_at(ip, Instant::now())
+    }
+
+    fn check_at(&self, ip: IpAddr, now: Instant) -> Option<u64> {
+        let mut state = self
+            .state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let now = Instant::now();
+        if now.duration_since(state.last_cleanup) >= self.window_duration {
+            state
+                .records
+                .retain(|_, record| now.duration_since(record.window_start) < self.window_duration);
+            state.last_cleanup = now;
+        }
 
-        let record = map.entry(ip).or_insert(ClientRecord {
+        let record = state.records.entry(ip).or_insert(ClientRecord {
             count: 0,
             window_start: now,
         });
@@ -280,12 +297,9 @@ impl RateLimiter {
             None
         } else {
             let elapsed = now.duration_since(record.window_start);
-            let remaining = self
-                .window_duration
-                .saturating_sub(elapsed)
-                .as_secs()
-                .max(1);
-            Some(remaining)
+            let remaining = self.window_duration.saturating_sub(elapsed);
+            let seconds = remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0);
+            Some(seconds.max(1))
         }
     }
 }
@@ -332,5 +346,29 @@ mod tests {
         with_request_id("first", || ());
         with_request_id("second", || ());
         assert_eq!(current_request_id(), REQUEST_ID_UNKNOWN);
+    }
+
+    #[test]
+    fn 清理过期客户端并保留活跃客户端的限额() {
+        let limiter = RateLimiter::new(1, 60);
+        let old = "192.0.2.1".parse().unwrap();
+        let active = "192.0.2.2".parse().unwrap();
+        let now = Instant::now();
+        assert_eq!(limiter.check_at(old, now), None);
+        assert_eq!(
+            limiter.check_at(old, now + Duration::from_millis(1)),
+            Some(60)
+        );
+        assert_eq!(
+            limiter.check_at(active, now + Duration::from_secs(45)),
+            None
+        );
+        assert_eq!(
+            limiter.check_at(active, now + Duration::from_secs(60)),
+            Some(45)
+        );
+        let state = limiter.state.lock().unwrap();
+        assert!(!state.records.contains_key(&old));
+        assert!(state.records.contains_key(&active));
     }
 }

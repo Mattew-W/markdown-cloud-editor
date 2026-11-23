@@ -563,6 +563,26 @@ test('M1-04 429 遵守响应头 Retry-After，不用退避表', async () => {
   assert.ok(fetchImpl.calls.length > before, '45 秒后应重试');
 });
 
+test('核对读取被限流时等待 Retry-After 并继续读取', async () => {
+  const plan = [
+    { throw: new Error('response lost') },
+    { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '60' }, body: { error: { code: 'RATE_LIMITED' } } },
+    { status: 200, body: { id: 'doc1', title: 'T', content: 'C1', version: 2 } },
+  ];
+  const { engine, clock, fetchImpl } = makeEngine({ plan });
+  engine.initSession('u1', 'tok', { id: 'doc1', title: 'T', content: 'C', version: 1 });
+  engine.onInput('T', 'C1');
+  await engine.flushSave();
+  clock.tick(1000);
+  await flushAsync();
+  clock.tick(59999);
+  assert.deepEqual(fetchImpl.calls.map(({ method }) => method), ['PUT', 'GET']);
+  clock.tick(1);
+  await flushAsync();
+  assert.deepEqual(fetchImpl.calls.map(({ method }) => method), ['PUT', 'GET', 'GET']);
+  assert.equal(engine.baseVersion, 2);
+});
+
 test('M1-04 退避表按 1/2/4/8/16/30 秒递增', async () => {
   assert.deepEqual([...BACKOFF_LADDER], [1000, 2000, 4000, 8000, 16000, 30000]);
   const { engine } = makeEngine();
