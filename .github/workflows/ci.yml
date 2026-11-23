@@ -69,6 +69,8 @@ jobs:
       # service container 的主机名在 Linux runner 上为 localhost。
       TEST_DATABASE_URL: postgres://postgres:ci_test_password@localhost:5432/mce_test
       DATABASE_URL: postgres://postgres:ci_test_password@localhost:5432/mce_test
+      PGHOST: localhost
+      PGUSER: postgres
 
     steps:
       - name: 检出代码
