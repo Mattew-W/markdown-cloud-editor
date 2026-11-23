@@ -114,6 +114,12 @@ const BLOCKED_STATES = Object.freeze([
   SyncState.INVALID,
 ]);
 
+function isValidDocumentInput(title, content) {
+  const trimmed = title.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
+  return trimmed.length > 0 && [...trimmed].length <= 255 &&
+    new TextEncoder().encode(content).length <= 262144;
+}
+
 export class SyncEngine {
   /**
    * @param {object} [callbacks]
@@ -131,6 +137,7 @@ export class SyncEngine {
    */
   constructor(callbacks = {}, options = {}) {
     this.state = SyncState.SYNCED;
+    this.documentInputRejected = false;
 
     // 会话标识（docs/SYNC.md §1）
     this.userId = null;
@@ -215,6 +222,7 @@ export class SyncEngine {
 
   setState(newState, payload = {}) {
     this.state = newState;
+    this.documentInputRejected = newState === SyncState.INVALID && payload.documentInputRejected === true;
     this.callbacks.onStateChange(newState, payload);
   }
 
@@ -320,11 +328,9 @@ export class SyncEngine {
     // 1. 排入本地草稿（250 毫秒合并写入，§9.4）
     this.writeDraft();
 
-    // 2. 阻塞态：**保持阻塞状态**，不调度任何写请求（§5、§11.3）。
-    //    但用户的输入仍留在内存与草稿里，不丢失。
-    if (this.isBlocked()) {
-      return;
-    }
+    // 输入仍保存为草稿。仅文档输入校验失败允许通过改正输入恢复。
+    const corrected = this.documentInputRejected && isValidDocumentInput(title, content);
+    if ((this.isBlocked() && !corrected) || (this.state === SyncState.RETRY_WAIT)) return;
 
     this.setState(SyncState.DIRTY, {
       localRevision: this.localRevision,
@@ -426,7 +432,11 @@ export class SyncEngine {
    * @returns {boolean} 是否成功刷新
    */
   flushDraft() {
-    if (!this.draftWriter) return true;
+    if (!this.draftWriter) {
+      if (this.localRevision <= this.ackedRevision) return true;
+      this.writeDraft();
+      if (!this.draftWriter) return false;
+    }
     try {
       this.draftWriter.flush();
       return true;
@@ -477,12 +487,10 @@ export class SyncEngine {
    * @returns {Promise<void>}
    */
   async flushSave() {
-    this.clearTimers();
-
     // 阻塞态：冲突未决 / 认证失效 / 输入非法时不得写（§5、§11.3）。
-    if (this.isBlocked()) {
-      return;
-    }
+    // 重试等待必须完成计时或核对流程，保存按钮也不能绕过这条路径。
+    if (this.isBlocked() || this.state === SyncState.RETRY_WAIT) return;
+    this.clearTimers();
 
     // 同一文档已有请求在途：等待其完成后再发最新快照（§2.2）。
     if (this.inFlightByDoc.has(this.docId)) {
@@ -660,7 +668,7 @@ export class SyncEngine {
       this.setState(SyncState.AUTH_REQUIRED, { storageOk: this.storageFailure === null });
     } else if (err instanceof InvalidInputError || err instanceof TooLargeError) {
       // §7.2：400/413 暂停自动重试，等用户修正。
-      this.setState(SyncState.INVALID, { error: err.message });
+      this.setState(SyncState.INVALID, { error: err.message, documentInputRejected: true });
     } else if (err instanceof NotFoundError) {
       // §6 分支 ④：云端文档已不可用。
       this.enterCloudUnavailable(snapshot);

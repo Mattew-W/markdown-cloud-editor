@@ -448,6 +448,7 @@ test('M1-04 网络错误先核对云端再处置（不得盲重发 PUT）', asyn
   const plan = [
     { throw: new Error('network down') },
     { status: 200, body: { id: 'doc1', title: 'T', content: 'C1', version: 2 } },
+    { status: 200, body: { id: 'doc1', version: 3 } },
   ];
   const { engine, clock, fetchImpl } = makeEngine({ plan });
   engine.initSession('u1', 'tok', { id: 'doc1', title: 'T', content: 'C', version: 1 });
@@ -457,6 +458,9 @@ test('M1-04 网络错误先核对云端再处置（不得盲重发 PUT）', asyn
   await flushAsync();
 
   assert.equal(engine.state, SyncState.RETRY_WAIT, '网络错误应先进入 retry_wait');
+  engine.onInput('T', '核对期间的新内容');
+  await engine.flushSave();
+  assert.deepEqual(fetchImpl.calls.map(({ method }) => method), ['PUT']);
 
   // 退避后触发核对。
   clock.tick(2000);
@@ -465,7 +469,11 @@ test('M1-04 网络错误先核对云端再处置（不得盲重发 PUT）', asyn
   assert.equal(fetchImpl.calls.length, 2, '第二次调用应是 GET 核对');
   assert.equal(fetchImpl.calls[1].method, 'GET', '必须先 GET 核对，不能盲重发 PUT');
   assert.equal(engine.baseVersion, 2, '分支 ①：应采纳读取到的版本');
-  assert.equal(engine.state, SyncState.SYNCED, '分支 ①：应确认已持久化');
+  assert.equal(engine.state, SyncState.DIRTY, '核对仅确认原快照，新内容仍待保存');
+  clock.tick(1600);
+  await flushAsync();
+  assert.equal(fetchImpl.calls[2].method, 'PUT');
+  assert.equal(engine.state, SyncState.SYNCED);
 });
 
 test('M1-04 §6 分支 ②：云端版本仍等于 base_version 时用原 expected_version 重试', async () => {
@@ -544,6 +552,8 @@ test('M1-04 429 遵守响应头 Retry-After，不用退避表', async () => {
 
   assert.equal(engine.state, SyncState.RETRY_WAIT);
   const before = fetchImpl.calls.length;
+  engine.onInput('T', '等待期间的新内容');
+  await engine.flushSave();
 
   // 退避表第 1 次是 1 秒，远小于 45 秒。
   clock.tick(5000);
@@ -598,6 +608,29 @@ test('M1-04 阻塞态不得被手动保存解除', async () => {
     assert.equal(fetchImpl.calls.length, before, `${state} 下手动保存不得发起写请求`);
     assert.equal(engine.state, state, `${state} 不得被手动保存解除`);
   }
+});
+
+test('正文缩短到字节限制后可从校验失败恢复保存', async () => {
+  const plan = [
+    { status: 413, body: { error: { code: 'PAYLOAD_TOO_LARGE', message: '超限' } } },
+    { status: 200, body: { id: 'doc1', version: 2 } },
+  ];
+  const { engine, clock, fetchImpl } = makeEngine({ plan });
+  engine.initSession('u1', 'tok', { id: 'doc1', title: 'T', content: 'C', version: 1 });
+  engine.onInput('T', '中'.repeat(87382));
+  await engine.flushSave();
+  assert.equal(engine.state, SyncState.INVALID);
+
+  engine.onInput('T', '中'.repeat(87381) + 'ab');
+  clock.tick(1600);
+  assert.equal(fetchImpl.calls.length, 1, '超过字节上限的修改仍不可调度');
+
+  engine.onInput('T', '中'.repeat(87381) + 'a');
+  assert.equal(engine.state, SyncState.DIRTY);
+  clock.tick(1600);
+  await flushAsync();
+  assert.equal(engine.state, SyncState.SYNCED);
+  assert.equal(engine.baseVersion, 2);
 });
 
 // ---------------------------------------------------------------------------
@@ -687,6 +720,19 @@ test('M1-05 resolveReload 不得用 force:true 清除其他会话的草稿', asy
   e2.engine.resolveReload({ id: 'doc1', title: 'T', content: 'C', version: 2 });
 
   assert.ok(store.has(otherKey), '其他标签页的草稿不得被清除');
+});
+
+test('创建草稿写入器失败时保留尚未获云端确认的会话', async () => {
+  const clock = makeClock();
+  const fetchImpl = makeFetch([{ status: 200, body: { version: 2 } }]);
+  const engine = new SyncEngine({}, { timers: clock, fetchImpl });
+  engine.initSession('u1', 'tok', { id: 'doc1', title: 'T', content: '', version: 1 });
+  engine.onInput('T', '仅在内存中的内容');
+  assert.equal(engine.flushDraft(), false);
+  assert.equal(engine.initSession('u1', 'tok', { id: 'doc2' }), false);
+  assert.equal(engine.currentContent, '仅在内存中的内容');
+  await engine.flushSave();
+  assert.equal(engine.initSession('u1', 'tok', { id: 'doc2' }), true);
 });
 
 test('切回文档须等待在途保存并读取云端', async () => {

@@ -67,6 +67,24 @@ test('立即退出保留待写草稿', async () => {
   dom.window.close();
 });
 
+test('最新草稿与云端一致时仍能恢复其余会话的草稿', async () => {
+  const dom = await setup('restore-older', async (url) => baseResponse(url));
+  seed();
+  const older = listDrafts({ userId: 'user', docId: 'doc' }, localStorage)[0];
+  const { key } = saveDraft({ userId: 'user', docId: 'doc', sessionId: 'confirmed',
+    baseVersion: 3, localRevision: 1, title: doc.title, content: doc.content }, localStorage);
+  const confirmed = JSON.parse(localStorage.getItem(key));
+  confirmed.recorded_at = new Date(Date.parse(older.recorded_at) + 1000).toISOString();
+  localStorage.setItem(key, JSON.stringify(confirmed));
+  document.querySelector('.doc-item').click();
+  await tick(); await tick();
+  assert.equal(document.getElementById('draftBanner').classList.contains('hidden'), false);
+  document.getElementById('btnRestoreDraft').click();
+  assert.equal(document.getElementById('docContent').value, '未同步');
+  document.getElementById('btnAuthToggle').click();
+  dom.window.close();
+});
+
 test('删除文档保留其他会话草稿', async () => {
   const dom = await setup('delete', async (url, init) =>
     init.method === 'DELETE' ? response(null, 204) : baseResponse(url));

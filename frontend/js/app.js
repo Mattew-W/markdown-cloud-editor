@@ -316,20 +316,10 @@ function checkLocalDraft(serverDoc) {
   if (!state.user) return;
 
   const draftList = drafts.listDrafts({ userId: state.user.id, docId: serverDoc.id });
-  if (draftList.length === 0) {
+  const latestDraft = draftList.find((draft) => drafts.classifyRestore(draft, serverDoc) !== 'adopt_cloud');
+  if (!latestDraft) {
     el.draftBanner.classList.add('hidden');
     state.pendingDraft = null;
-    return;
-  }
-
-  const latestDraft = draftList[0];
-  const decision = drafts.classifyRestore(latestDraft, serverDoc);
-
-  // 分支 ①（adopt_cloud）：草稿与云端完全相同 —— 草稿冗余，直接采用云端。
-  // 分支 ②（confirm）/ ③（conflict）：需要用户确认，**不得**自动覆盖任一方。
-  if (decision === 'adopt_cloud') {
-    state.pendingDraft = null;
-    el.draftBanner.classList.add('hidden');
     return;
   }
 
