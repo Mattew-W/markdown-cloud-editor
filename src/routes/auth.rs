@@ -11,6 +11,8 @@
 //! 委派至业务服务层 [`crate::services::auth_service`]。
 //! 本模块负责请求体提取、限流拦截与 HTTP 状态码映射。
 
+use std::net::{IpAddr, Ipv4Addr};
+
 use actix_web::{HttpRequest, HttpResponse, ResponseError, web};
 
 use crate::auth::{
@@ -20,6 +22,7 @@ use crate::auth::{
 };
 use crate::config::Config;
 use crate::error::AppError;
+use crate::middleware::RateLimiter;
 use crate::services::auth_service;
 use crate::state::AppState;
 
@@ -109,6 +112,39 @@ pub fn authenticate(req: &HttpRequest, config: &Config) -> Result<Claims, AppErr
     decode_token(token, config.jwt_secret()).map_err(|_| AppError::Unauthorized)
 }
 
+fn client_ip(req: &HttpRequest, trusted_proxy_ip: Option<IpAddr>) -> IpAddr {
+    let Some(peer) = req.peer_addr() else {
+        return IpAddr::V4(Ipv4Addr::LOCALHOST);
+    };
+    let peer_ip = peer.ip().to_canonical();
+    if trusted_proxy_ip != Some(peer_ip) {
+        return peer_ip;
+    }
+
+    let mut values = req.headers().get_all("x-real-ip");
+    let forwarded_ip = values
+        .next()
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<IpAddr>().ok());
+    if let (Some(ip), None) = (forwarded_ip, values.next()) {
+        return ip.to_canonical();
+    }
+    peer_ip
+}
+
+fn check_auth_rate_limit(
+    req: &HttpRequest,
+    config: &Config,
+    limiter: Option<&RateLimiter>,
+) -> Result<(), AppError> {
+    if let Some(retry_after_secs) =
+        limiter.and_then(|l| l.check(client_ip(req, config.trusted_proxy_ip)))
+    {
+        return Err(AppError::RateLimited { retry_after_secs });
+    }
+    Ok(())
+}
+
 /// `POST /api/v1/auth/register` —— 注册新用户。
 ///
 /// 成功返回 201 与 token（规范 §06：注册与登录响应结构相同）。
@@ -121,21 +157,10 @@ pub async fn register(
     state: web::Data<AppState>,
     config: web::Data<Config>,
     auth_config: web::Data<AuthConfig>,
-    limiter: Option<web::Data<crate::middleware::RateLimiter>>,
+    limiter: Option<web::Data<RateLimiter>>,
     body: web::Json<RegisterRequest>,
 ) -> Result<HttpResponse, AppError> {
-    if let Some(ref l) = limiter {
-        let ip = req
-            .peer_addr()
-            .map_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), |p| {
-                p.ip()
-            });
-        if let Some(retry_after) = l.check(ip) {
-            return Err(AppError::RateLimited {
-                retry_after_secs: retry_after,
-            });
-        }
-    }
+    check_auth_rate_limit(&req, &config, limiter.as_ref().map(web::Data::get_ref))?;
 
     let response = auth_service::register(
         &state.db,
@@ -162,21 +187,10 @@ pub async fn login(
     state: web::Data<AppState>,
     config: web::Data<Config>,
     auth_config: web::Data<AuthConfig>,
-    limiter: Option<web::Data<crate::middleware::RateLimiter>>,
+    limiter: Option<web::Data<RateLimiter>>,
     body: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, AppError> {
-    if let Some(ref l) = limiter {
-        let ip = req
-            .peer_addr()
-            .map_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), |p| {
-                p.ip()
-            });
-        if let Some(retry_after) = l.check(ip) {
-            return Err(AppError::RateLimited {
-                retry_after_secs: retry_after,
-            });
-        }
-    }
+    check_auth_rate_limit(&req, &config, limiter.as_ref().map(web::Data::get_ref))?;
 
     let response = auth_service::login(
         &state.db,
@@ -228,6 +242,8 @@ pub fn json_config() -> web::JsonConfig {
 
 #[cfg(test)]
 mod tests {
+    use actix_web::test::TestRequest;
+
     use super::*;
 
     #[test]
@@ -253,5 +269,48 @@ mod tests {
     #[test]
     fn 未认证映射为401() {
         assert_eq!(AppError::Unauthorized.code().status().as_u16(), 401);
+    }
+
+    #[test]
+    fn 只信任指定直连代理且各源地址独立限流() {
+        let proxy = "127.0.0.1:80".parse::<std::net::SocketAddr>().unwrap();
+        let first_client = "192.0.2.1".parse::<IpAddr>().unwrap();
+        let second_client = "2001:db8::1".parse::<IpAddr>().unwrap();
+        let request = |client: IpAddr| {
+            TestRequest::default()
+                .peer_addr(proxy)
+                .insert_header(("x-real-ip", client.to_string()))
+                .to_http_request()
+        };
+        assert_eq!(client_ip(&request(first_client), None), proxy.ip());
+        assert_eq!(
+            client_ip(&request(first_client), Some(second_client)),
+            proxy.ip()
+        );
+
+        let limiter = RateLimiter::new(1, 60);
+        let trust = Some(proxy.ip());
+        assert!(
+            limiter
+                .check(client_ip(&request(first_client), trust))
+                .is_none()
+        );
+        assert!(
+            limiter
+                .check(client_ip(&request(first_client), trust))
+                .is_some()
+        );
+        assert!(
+            limiter
+                .check(client_ip(&request(second_client), trust))
+                .is_none()
+        );
+
+        let ambiguous = TestRequest::default()
+            .peer_addr(proxy)
+            .append_header(("x-real-ip", first_client.to_string()))
+            .append_header(("x-real-ip", second_client.to_string()))
+            .to_http_request();
+        assert_eq!(client_ip(&ambiguous, trust), proxy.ip());
     }
 }

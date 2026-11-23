@@ -681,13 +681,15 @@ test('M1-05 存储失败时保留内存内容', async () => {
     removeItem: () => {},
   };
 
-  const { engine } = makeEngine({ storage });
+  const { engine } = makeEngine({ storage, plan: [{ status: 200, body: { version: 2 } }] });
   engine.initSession('u1', 'tok', { id: 'doc1', title: 'T', content: 'C', version: 1 });
   engine.onInput('T', '内存必须保留');
 
   assert.equal(engine.initSession('u1', 'tok', { id: 'doc2', title: '另一篇', content: '', version: 1 }), false);
   assert.equal(engine.docId, 'doc1', '落盘失败时必须保留当前会话');
   assert.equal(engine.currentContent, '内存必须保留', '内存内容是最后一道防线，不得清空');
+  await engine.flushSave();
+  assert.equal(engine.initSession('u1', 'tok', { id: 'doc2', title: '另一篇', content: '', version: 1 }), true);
 });
 
 test('M1-05 resolveReload 不得用 force:true 清除其他会话的草稿', async () => {

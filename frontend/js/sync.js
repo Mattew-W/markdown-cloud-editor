@@ -223,7 +223,10 @@ export class SyncEngine {
   setState(newState, payload = {}) {
     this.state = newState;
     this.documentInputRejected = newState === SyncState.INVALID && payload.documentInputRejected === true;
-    this.callbacks.onStateChange(newState, payload);
+    this.callbacks.onStateChange(newState, {
+      ...payload,
+      draftPending: this.draftWriter?.pending() ?? false,
+    });
   }
 
   /**
@@ -358,6 +361,10 @@ export class SyncEngine {
             this.timers.setTimeout(() => {
               try {
                 fn();
+                this.storageFailure = null;
+                if (this.state === SyncState.DIRTY) {
+                  this.setState(SyncState.DIRTY, { storageOk: true, localRevision: this.localRevision });
+                }
               } catch (error) {
                 this.onDraftWriteFailed(error);
               }
@@ -432,8 +439,11 @@ export class SyncEngine {
    * @returns {boolean} 是否成功刷新
    */
   flushDraft() {
+    if (this.localRevision <= this.ackedRevision) {
+      this.draftWriter?.cancel();
+      return true;
+    }
     if (!this.draftWriter) {
-      if (this.localRevision <= this.ackedRevision) return true;
       this.writeDraft();
       if (!this.draftWriter) return false;
     }

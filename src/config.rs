@@ -6,7 +6,7 @@
 //!
 //! 真实密钥只从环境变量读取；仓库内只保留 `.env.example` 占位样例。
 
-use std::fmt;
+use std::{fmt, net::IpAddr};
 
 /// 最小 JWT 密钥字节长度（规范要求 ≥32 字节高熵）。
 pub const MIN_JWT_SECRET_BYTES: usize = 32;
@@ -91,6 +91,10 @@ pub enum ConfigError {
     #[error("BIND_ADDR 无法解析：{0}")]
     InvalidBindAddr(String),
 
+    /// 可信反向代理地址无法解析。
+    #[error("TRUSTED_PROXY_IP 必须是单个 IPv4 或 IPv6 地址：{0}")]
+    InvalidTrustedProxyIp(String),
+
     /// 数值型配置超出合理范围。
     #[error("{name} 超出允许范围：{value}（允许 {min}–{max}）")]
     OutOfRange {
@@ -119,6 +123,8 @@ pub struct Config {
     pub bind_addr: String,
     /// JWT 有效期（秒）。
     pub jwt_ttl_secs: u64,
+    /// 唯一允许提供 X-Real-IP 的直连反向代理地址。
+    pub trusted_proxy_ip: Option<IpAddr>,
 }
 
 /// 手写的脱敏 `Debug` 实现：绝不打印密钥内容。
@@ -129,6 +135,7 @@ impl fmt::Debug for Config {
             .field("jwt_secret", &"<redacted>")
             .field("bind_addr", &self.bind_addr)
             .field("jwt_ttl_secs", &self.jwt_ttl_secs)
+            .field("trusted_proxy_ip", &self.trusted_proxy_ip)
             .finish()
     }
 }
@@ -164,7 +171,17 @@ impl Config {
             max: MAX_JWT_TTL_SECS,
         })?;
 
-        Self::new(database_url, jwt_secret, bind_addr, jwt_ttl_secs)
+        let mut config = Self::new(database_url, jwt_secret, bind_addr, jwt_ttl_secs)?;
+        if let Ok(value) = std::env::var("TRUSTED_PROXY_IP")
+            && !value.trim().is_empty()
+        {
+            let ip = value
+                .trim()
+                .parse::<IpAddr>()
+                .map_err(|_| ConfigError::InvalidTrustedProxyIp(value))?;
+            config.trusted_proxy_ip = Some(ip.to_canonical());
+        }
+        Ok(config)
     }
 
     /// 校验并构造配置。便于单元测试直接注入候选值。
@@ -200,6 +217,7 @@ impl Config {
             jwt_secret,
             bind_addr,
             jwt_ttl_secs,
+            trusted_proxy_ip: None,
         })
     }
 

@@ -174,8 +174,16 @@ function updateSyncBadge(syncState, payload = {}) {
       break;
     case SyncState.DIRTY:
       el.syncBadge.classList.add('badge-dirty');
-      el.syncBadge.textContent = payload.storageOk === false ? '⚠ 本地备份失败' : '• 本地已备份';
-      el.statusText.textContent = payload.message || '已在本地备份';
+      if (payload.storageOk === false) {
+        el.syncBadge.textContent = '⚠ 本地备份失败';
+        el.statusText.textContent = payload.message || '本地备份失败';
+      } else if (payload.draftPending) {
+        el.syncBadge.textContent = '• 等待本地备份';
+        el.statusText.textContent = '正在准备本地草稿';
+      } else {
+        el.syncBadge.textContent = '• 本地已备份';
+        el.statusText.textContent = payload.message || '已在本地备份';
+      }
       break;
     case SyncState.SAVING:
       el.syncBadge.classList.add('badge-saving');
@@ -595,6 +603,13 @@ el.btnSaveNow.addEventListener('click', () => syncEngine.flushSave());
 el.btnDeleteDoc.addEventListener('click', deleteCurrentDocument);
 el.btnDownloadMarkdown.addEventListener('click', downloadMarkdown);
 el.btnDownloadFromBanner.addEventListener('click', downloadMarkdown);
+
+window.addEventListener('beforeunload', (event) => {
+  if (syncEngine.flushDraft()) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+window.addEventListener('pagehide', () => syncEngine.flushDraft());
 
 // 手动保存快捷键（docs/SYNC.md §2.1：手动保存由 Ctrl+S / Cmd+S 触发）。
 document.addEventListener('keydown', (event) => {

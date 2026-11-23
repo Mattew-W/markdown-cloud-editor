@@ -6,9 +6,9 @@
 
 | 版本 | 当前范围 |
 |---|---|
-| GitHub `main` · W3 | Actix Web API、注册和登录、文档 CRUD、版本冲突检查、PostgreSQL 迁移，以及前端 API 与草稿模块测试 |
-| W4 集成候选 | 自动保存、会话隔离、数据库回归与界面反馈候选。接线和浏览器验收进度见 [草稿 PR #13](https://github.com/Mattew-W/markdown-cloud-editor/pull/13) |
-| W5 联调 | 系统回归按成员任务包和指定的联调快照执行；本地入口见下方路径表 |
+| W3 基线 | Actix Web API、注册和登录、文档 CRUD、版本冲突检查、PostgreSQL 迁移，以及前端 API 与草稿测试 |
+| W4 集成候选 | 自动保存、会话隔离、数据库回归与界面反馈的阶段快照，见 [草稿 PR #13](https://github.com/Mattew-W/markdown-cloud-editor/pull/13) |
+| W5 联调 | 编辑、预览、自动保存与草稿恢复进入统一集成版本，增加真实库回归和浏览器冒烟，见 [PR #14](https://github.com/Mattew-W/markdown-cloud-editor/pull/14) |
 
 ## 本地开发
 
@@ -16,6 +16,7 @@
 2. 将 `.env.example` 复制为 `.env`，配置测试用数据库连接，并将 `JWT_SECRET` 换成至少 32 字节的随机值。
 3. 按 [PostgreSQL 开发说明](docs/LOCAL_POSTGRES.md) 创建数据库并应用迁移。
 4. 在仓库根目录执行 `cargo run --locked`。默认 API 地址为 `http://127.0.0.1:8080`，健康检查为 `/health`。
+5. 在同一浏览器 origin 下提供 `frontend/` 的静态页面并将 `/api/` 转发到 Actix。静态页面和 API 的连接方式见 [部署架构](docs/ARCHITECTURE.md#10-部署架构)。
 
 ```text
 cargo fmt --check
@@ -24,7 +25,7 @@ cargo test --locked --all-targets
 cargo doc --locked --no-deps
 ```
 
-真实数据库集成测试需要独立测试库。设置 `TEST_DATABASE_URL` 后执行 `cargo test --locked --all-targets -- --ignored`。前端在 `frontend/` 下执行 `npm test`，若当前版本包含 `package-lock.json`，先执行 `npm ci`。
+真实数据库集成测试需要独立测试库。设置 `TEST_DATABASE_URL` 后执行 `cargo test --locked --all-targets -- --ignored`。前端依次执行 `npm ci --prefix frontend` 和 `npm test --prefix frontend`。运行中的 API 可用 `node frontend/m1_06_e2e.mjs http://127.0.0.1:8080` 验证独立 HTTP 与同步链路。
 
 ## 目录入口
 

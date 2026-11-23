@@ -67,6 +67,18 @@ test('立即退出保留待写草稿', async () => {
   dom.window.close();
 });
 
+test('页面离开前刷新尚未落盘的草稿', async () => {
+  const dom = await setup('pagehide', async (url) => baseResponse(url));
+  const input = document.getElementById('docContent');
+  input.value = '刷新前的输入';
+  input.dispatchEvent(new dom.window.Event('input'));
+  assert.match(document.getElementById('syncBadge').textContent, /等待本地备份/);
+  dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+  assert.equal(listDrafts({ userId: 'user', docId: 'doc' }, localStorage)[0].content, '刷新前的输入');
+  document.getElementById('btnAuthToggle').click();
+  dom.window.close();
+});
+
 test('最新草稿与云端一致时仍能恢复其余会话的草稿', async () => {
   const dom = await setup('restore-older', async (url) => baseResponse(url));
   seed();
