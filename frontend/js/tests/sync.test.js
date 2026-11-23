@@ -453,7 +453,7 @@ test('M1-04 网络错误先核对云端再处置（不得盲重发 PUT）', asyn
   const { engine, clock, fetchImpl, states } = makeEngine({ plan });
   engine.initSession('u1', 'tok', { id: 'doc1', title: 'T', content: 'C', version: 1 });
 
-  engine.onInput('T', 'C1');
+  engine.onInput(' T\u3000', 'C1');
   clock.tick(1600);
   await flushAsync();
 

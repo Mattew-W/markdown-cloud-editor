@@ -114,8 +114,13 @@ const BLOCKED_STATES = Object.freeze([
   SyncState.INVALID,
 ]);
 
+function normalizeTitle(title) {
+  // 与 Rust 的 str::trim() 一致，保留非 Unicode White_Space 字符。
+  return title.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
+}
+
 function isValidDocumentInput(title, content) {
-  const trimmed = title.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
+  const trimmed = normalizeTitle(title);
   return trimmed.length > 0 && [...trimmed].length <= 255 &&
     new TextEncoder().encode(content).length <= 262144;
 }
@@ -805,7 +810,7 @@ export class SyncEngine {
       if (snapshot.generation !== this.generation) return;
 
       // 分支 ①：云端与快照完全相同 —— 该快照已持久化，采纳读取到的版本。
-      if (cloud.title === snapshot.title && cloud.content === snapshot.content) {
+      if (cloud.title === normalizeTitle(snapshot.title) && cloud.content === snapshot.content) {
         this.baseVersion = cloud.version;
         this.ackedRevision = snapshot.savingRevision;
         this.retryAttempt = 0;
