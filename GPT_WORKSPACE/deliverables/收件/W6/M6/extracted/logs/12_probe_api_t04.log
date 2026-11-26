@@ -1,0 +1,11 @@
+登录结果: 200
+T04-初始: id=cf747208-d6d0-4d94-a2a5-0755e9dea75e version=1
+T04-并发PUT status=200 body={"id":"cf747208-d6d0-4d94-a2a5-0755e9dea75e","version":2,"updated_at":"2026-11-24T02:55:23Z"}
+T04-并发PUT status=409 body={"error":{"code":"VERSION_CONFLICT","message":"document version conflict","details":{"server_version":2},"request_id":"d819d013-d2c9-4188-a3f2-89bd4de22f7d"}}
+T04-最终行: version=2 content=winner-A
+T04-成功次数=1 409次数=1
+T11-429: status=429 Retry-After=59 body={"error":{"code":"RATE_LIMITED","message":"too many requests","request_id":"97d43343-4bc0-4e4b-ba90-9a4f3345599f"}}
+token 已写入 $env:TEMP\w6_probe_token.txt，供停库后的 5xx 探针复用
+T11-5xx: 由 probe_api_w6_p3.ps1 在停库窗口内执行
+T04 探针文档已清理
+

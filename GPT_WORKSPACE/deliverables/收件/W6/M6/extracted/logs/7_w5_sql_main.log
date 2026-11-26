@@ -1,0 +1,12 @@
+NOTICE:  schema "t_w5_20261124_103440_510_53916" does not exist, skipping
+W5 entry: run_w5_regression.sql
+W5 schema: t_w5_20261124_103440_510_53916
+W5 stdout: C:\Users\ROG\Desktop\M6_W6_work\logs\w5_sql\w5_regression_20261124_103440_510_53916.stdout.txt
+W5 stderr: C:\Users\ROG\Desktop\M6_W6_work\logs\w5_sql\w5_regression_20261124_103440_510_53916.stderr.txt
+W5 exit code: 0
+W5 residual t_w5_* before: 0
+W5 residual this schema after: 0
+W5 residual t_w5_* after: 0
+W5 lingering sessions (app=mce_w5_20261124_103440_510_53916): 0
+W5 outcome: PASS
+

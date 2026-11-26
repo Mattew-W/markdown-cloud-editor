@@ -1,0 +1,17 @@
+NOTICE:  drop cascades to 5 other objects
+DETAIL:  drop cascades to table t_w5_20261124_103456_127_26264.w4_public_counts
+drop cascades to function t_w5_20261124_103456_127_26264.w4_capture_public_counts(text)
+drop cascades to function t_w5_20261124_103456_127_26264.w4_assert_public_counts()
+drop cascades to table t_w5_20261124_103456_127_26264.users
+drop cascades to table t_w5_20261124_103456_127_26264.documents
+W5 entry: negative_control\run_w5_negative_control.sql
+W5 schema: t_w5_20261124_103456_127_26264
+W5 stdout: C:\Users\ROG\Desktop\M6_W6_work\logs\w5_sql\w5_regression_20261124_103456_127_26264.stdout.txt
+W5 stderr: C:\Users\ROG\Desktop\M6_W6_work\logs\w5_sql\w5_regression_20261124_103456_127_26264.stderr.txt
+W5 exit code: 3
+W5 residual t_w5_* before: 0
+W5 residual this schema after: 0
+W5 residual t_w5_* after: 0
+W5 lingering sessions (app=mce_w5_20261124_103456_127_26264): 0
+W5 outcome: PASS (expected failure detected, cleaned up)
+

@@ -1,0 +1,120 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.50s
+     Running unittests src\lib.rs (target\debug\deps\markdown_cloud_editor-1a59db14bc07b4d3.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 98 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\markdown_cloud_editor-3c2d18a8ec55ca9d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\auth_db.rs (target\debug\deps\auth_db-f0437cfaaa4178e3.exe)
+
+running 8 tests
+test 数据库约束拦下非法用户名 ... ok
+test 数据库约束拦下超长正文 ... ok
+test 注册响应不含任何敏感字段 ... ok
+test 密码哈希以argon2id_phc格式存储 ... ok
+test 注册成功返回201与可用token ... ok
+test 用户名归一化后重名返回409 ... ok
+test 登录成功返回200 ... ok
+test 密码错误与用户不存在返回完全相同的401 ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.74s
+
+     Running tests\auth_w4.rs (target\debug\deps\auth_w4-b6652f6a8aa417ff.exe)
+
+running 6 tests
+test 库中哈希损坏返回500而非401 ... ok
+test 验证上限经配置传入真实登录路径 ... ok
+test 错误响应不带内部细节且request_id与响应头一致 ... ok
+test 重复用户名返回409 ... ok
+test 正确密码登录返回200 ... ok
+test 错误密码与用户不存在返回同形401 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 1.54s
+
+     Running tests\document_api.rs (target\debug\deps\document_api-abf321456b904e1a.exe)
+
+running 20 tests
+test 非法token访问文档返回401 ... ok
+test 无token访问文档返回401 ... ok
+test 创建时显式传空标题返回400 ... ok
+test 不存在的文档返回404 ... ok
+test 创建时全角空格标题返回400 ... ok
+test 标题超长返回400 ... ok
+test 标题存修剪后值而正文存原样 ... ok
+test 分页与排序稳定 ... ok
+test 更新文档时正文原样落库不被修剪 ... ok
+test 正文超限返回413 ... ok
+test 正文恰好在上限应通过 ... ok
+test 用旧版本删除触发409 ... ok
+test 更新缺少必填字段返回400 ... ok
+test 分页参数越界返回400 ... ok
+test 正文含首尾空白时原样落库不被修剪 ... ok
+test 删除缺少expected_version查询参数返回400 ... ok
+test 用旧版本更新触发409且带server_version ... ok
+test 创建时省略标题使用默认标题 ... ok
+test 文档crud全流程 ... ok
+test 两用户数据互相隔离 ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.19s
+
+     Running tests\document_w4.rs (target\debug\deps\document_w4-7bff2c2c6bb7f082.exe)
+
+running 14 tests
+test m4_02_u00a0不间断空格标题返回400 ... ok
+test m4_03_更新路径正文首尾空白原样落库 ... ok
+test m4_04_删除时期望版本为0返回400 ... ok
+test m4_02_纯普通空格标题返回400 ... ok
+test m4_01_原始超限修剪后合规的正文创建必须413 ... ok
+test m4_02_标题修剪后255合法而256非法 ... ok
+test m4_04_期望版本超出i32上限返回400 ... ok
+test m4_01_原始超限修剪后合规的正文更新必须413 ... ok
+test m4_03_多字节正文按字节边界 ... ok
+test m4_04_期望版本类型错误返回400 ... ok
+test m4_03_空正文创建路径原样落库 ... ok
+test m4_04_期望版本为0返回400 ... ok
+test m4_04_期望版本为负数返回400 ... ok
+test m4_03_空正文更新路径原样落库 ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.80s
+
+     Running tests\document_w5.rs (target\debug\deps\document_w5-9697cd37c1692649.exe)
+
+running 8 tests
+test nbsp标题返回400且错误码稳定 ... ok
+test 超限创建不新增行 ... ok
+test 超限更新后内容与版本维持原值 ... ok
+test 同版本并发更新重复场次结果稳定 ... ok
+test 合法正文与空正文在创建和更新路径都原样落库 ... ok
+test 首尾空格加满额正文按原始字节计数被拒413 ... ok
+test 同版本并发更新最多一次写入 ... ok
+test 非所有者三种操作均404且不泄漏元数据 ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.92s
+
+     Running tests\e2e_full_workflow.rs (target\debug\deps\e2e_full_workflow-2ef981474e6dd7fd.exe)
+
+running 1 test
+test test_full_e2e_multi_tenant_and_optimistic_concurrency_workflow ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
+     Running tests\health_api.rs (target\debug\deps\health_api-520980e147e1cb53.exe)
+
+running 1 test
+test health_returns_200_when_db_reachable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.03s
+
+     Running tests\w5_regression.rs (target\debug\deps\w5_regression-9259c56fef04a8fd.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+

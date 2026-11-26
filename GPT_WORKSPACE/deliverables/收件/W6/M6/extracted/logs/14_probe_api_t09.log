@@ -1,0 +1,7 @@
+T09-创建: status=201 id=ae0baa8c-4a4a-4676-b3e8-6ff5c2c88d3c
+T09-更新到v2: status=200 body={"id":"ae0baa8c-4a4a-4676-b3e8-6ff5c2c88d3c","version":2,"updated_at":"2026-11-24T02:58:29Z"}
+T09-旧版本删除(expected_version=1): status=409 body={"error":{"code":"VERSION_CONFLICT","message":"document version conflict","details":{"server_version":2},"request_id":"23230a38-e17d-4484-9a5f-389ccbf4297b"}}
+T09-删除被拒后仍可读: status=200 version=2
+T09-当前版本删除(expected_version=2): status=204 bodyLen=0
+T09-删除后读取: status=404 body={"error":{"code":"NOT_FOUND","message":"resource not found","request_id":"1478456b-d532-45f6-a440-90587188ae2f"}}
+

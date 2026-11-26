@@ -1,0 +1,48 @@
+[REG-A] 期望 201/200 | 实际 201 | Retry-After=
+      {"token":"<JWT-REDACTED>…
+[REG-B] 期望 201/200 | 实际 201 | Retry-After=
+      {"token":"<JWT-REDACTED>…
+[T01-login-ok] 期望 200 | 实际 200 | Retry-After=
+      {"token":"<JWT-REDACTED>…
+T01-响应含 password_hash: False
+[T01-篡改token] 期望 401 | 实际 401 | Retry-After=
+      {"error":{"code":"UNAUTHORIZED","message":"authentication required","request_id":"a4eb83fd-016f-41a4-b547-6985a49410e2"}}
+[T01-无token] 期望 401 | 实际 401 | Retry-After=
+      {"error":{"code":"UNAUTHORIZED","message":"authentication required","request_id":"ecac7ce5-8388-4911-bc35-4f5c69324a65"}}
+T01-401 结构: {"error":{"code":"UNAUTHORIZED","message":"authentication required","request_id":"a4eb83fd-016f-41a4-b547-6985a49410e2"}}
+[T02-create] 期望 201 | 实际 201 | Retry-After=
+      {"id":"b4f90dda-c179-461e-beb8-7b18fda34898","title":"T02 私有文档","content":"A 的正文","version":1,"created_at":"2026-11-24T02:54:10Z","updated_at":"2026-11-24T02:54:10Z"}
+[T02-B-get] 期望 404 | 实际 404 | Retry-After=
+      {"error":{"code":"NOT_FOUND","message":"resource not found","request_id":"5a77d0e9-5ba2-412a-9887-f6ae08fc5a0a"}}
+[T02-B-put] 期望 404 | 实际 404 | Retry-After=
+      {"error":{"code":"NOT_FOUND","message":"resource not found","request_id":"84bebb64-16bb-494d-b55a-f3f743131a35"}}
+[T02-B-delete] 期望 404 | 实际 404 | Retry-After=
+      {"error":{"code":"NOT_FOUND","message":"resource not found","request_id":"936f20b6-76d8-4cef-8313-2c438bb9b811"}}
+T02-前后一致: True | version=1
+[T04-并发PUT] 期望 一个200/一个409 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"Json deserialize error: missing field `title` at line 1 column 43","request_id":"88d04cb3-b011-437e-9b3b-9eabf94a751b"}}
+[T04-并发PUT] 期望 一个200/一个409 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"Json deserialize error: missing field `title` at line 1 column 43","request_id":"9e9731ff-b46f-41cc-aaef-29ca6c6d8d92"}}
+T04-最终行: version=1 content=base
+[T11-413-正文超限] 期望 413 | 实际 413 | Retry-After=
+      {"error":{"code":"PAYLOAD_TOO_LARGE","message":"payload too large","request_id":"ec16ebab-931f-4a05-bd7a-b837938b581d"}}
+[T11-413-请求体超2MiB] 期望 413 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"JSON payload (2400034 bytes) is larger than allowed (limit: 2097152 bytes).","request_id":"40757d69-fd48-4beb-8608-ce289071fd3a"}}
+[T11-429] 期望 429 + Retry-After | 实际 429 | Retry-After=System.String[]
+      {"error":{"code":"RATE_LIMITED","message":"too many requests","request_id":"927dfde6-70cf-4569-9453-b31ff6a381ef"}}
+[T14-空标题] 期望 400 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"标题不能为空白字符","details":{"field":"title"},"request_id":"3192209d-d8d4-47fb-b5fd-9aa33ea34ec1"}}
+[T14-非法UUID] 期望 400 | 实际 404 | Retry-After=
+      UUID parsing failed: invalid character: found `n` at 0
+[T14-limit=0] 期望 400 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"limit 必须在 1 到 100 之间","request_id":"68ba0a79-aa2d-4443-bcc3-7df2134a4aa3"}}
+[T14-limit=101] 期望 400 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"limit 必须在 1 到 100 之间","request_id":"4afe4b67-700e-454d-83fa-f9e479ec5ff8"}}
+[T14-offset=-1] 期望 400 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"offset 必须大于等于 0","request_id":"69ba0dc8-f056-43e3-9b77-482be4201cf1"}}
+[T14-expected_version=0] 期望 400 | 实际 400 | Retry-After=
+      {"error":{"code":"BAD_REQUEST","message":"期望版本号必须大于等于 1","details":{"field":"expected_version"},"request_id":"c39a2d09-04b0-43c9-bec6-590ddd60e861"}}
+[T14-正常分页] 期望 200 | 实际 200 | Retry-After=
+      {"documents":[{"id":"28943721-0859-4a26-8153-68a5b3be45bc","title":"T04 并发","version":1,"created_at":"2026-11-24T02:54:10Z","updated_at":"2026-11-24T02:54:10Z"},{"id":"b4f90dda-c179-461e-beb8-7b18fda34898","title":"T02 私有文档","version":1,"created_at":"2026-11-24T02:54:10Z","updated_at":"2026-11-24T02…
+探针文档已清理
+

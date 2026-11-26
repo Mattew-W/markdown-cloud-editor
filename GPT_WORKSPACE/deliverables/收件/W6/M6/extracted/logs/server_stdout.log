@@ -1,0 +1,8 @@
+[2m2026-11-24T02:35:09.403906Z[0m [32m INFO[0m [2mmarkdown_cloud_editor[0m[2m:[0m configuration loaded [3mbind_addr[0m[2m=[0m127.0.0.1:18080
+[2m2026-11-24T02:35:09.436117Z[0m [32m INFO[0m [2mmarkdown_cloud_editor[0m[2m:[0m starting HTTP server [3mbind_addr[0m[2m=[0m127.0.0.1:18080 [3mjwt_ttl_secs[0m[2m=[0m3600
+[2m2026-11-24T02:35:09.438649Z[0m [32m INFO[0m [2mactix_server::builder[0m[2m:[0m starting 32 workers
+[2m2026-11-24T02:35:09.440495Z[0m [32m INFO[0m [2mactix_server::server[0m[2m:[0m Actix runtime found; starting in Actix runtime
+[2m2026-11-24T02:35:09.442412Z[0m [32m INFO[0m [2mactix_server::server[0m[2m:[0m starting service: "actix-web-service-127.0.0.1:18080", workers: 32, listening on: 127.0.0.1:18080
+[2m2026-11-24T02:35:26.501741Z[0m [31mERROR[0m [2mmarkdown_cloud_editor::error[0m[2m:[0m unhandled internal error [3merror[0m[2m=[0merror returned from database: permission denied for table users
+[2m2026-11-24T02:35:26.832543Z[0m [31mERROR[0m [2mmarkdown_cloud_editor::error[0m[2m:[0m unhandled internal error [3merror[0m[2m=[0merror returned from database: permission denied for table users
+

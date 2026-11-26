@@ -1,0 +1,19 @@
+# 来源：浏览器自动化工具（bu.wait_for_download）返回值，按会话记录转录
+# 触发点：T10 存储不足提示条内的“立即下载 Markdown”按钮
+# 时间：2026-11-24 10:50 左右（本地）
+
+{
+  'guid': '<REDACTED-GUID>',
+  'state': 'completed',
+  'url': 'blob:http://127.0.0.1:18081/<REDACTED-BLOB-UUID>',
+  'filename': '未命名文档.md',
+  'path': '<本机下载目录>/未命名文档.md',
+  'bytes': 325,
+  'source': 'browser'
+}
+
+# 文件内容（前 60 字，正文与编辑器一致）：
+# 存储不足 / 本地写入被注入 QuotaExceededError。X / 真实配额已占满后的输入。…
+#
+# 观察：下载名取自 state.currentDoc.title（仍在“未命名文档”），而标题编辑框已改为
+#      “W6 存储不足用例”；正文不受影响 → 记为观察项 F-05。

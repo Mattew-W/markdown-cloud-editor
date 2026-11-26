@@ -1,0 +1,4 @@
+cargo fmt --check
+EXIT=0
+
+

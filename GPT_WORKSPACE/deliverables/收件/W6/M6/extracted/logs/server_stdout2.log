@@ -1,0 +1,10 @@
+[2m2026-11-24T02:42:17.206386Z[0m [32m INFO[0m [2mmarkdown_cloud_editor[0m[2m:[0m configuration loaded [3mbind_addr[0m[2m=[0m127.0.0.1:18080
+[2m2026-11-24T02:42:17.231178Z[0m [32m INFO[0m [2mmarkdown_cloud_editor[0m[2m:[0m starting HTTP server [3mbind_addr[0m[2m=[0m127.0.0.1:18080 [3mjwt_ttl_secs[0m[2m=[0m3600
+[2m2026-11-24T02:42:17.232134Z[0m [32m INFO[0m [2mactix_server::builder[0m[2m:[0m starting 32 workers
+[2m2026-11-24T02:42:17.232537Z[0m [32m INFO[0m [2mactix_server::server[0m[2m:[0m Actix runtime found; starting in Actix runtime
+[2m2026-11-24T02:42:17.232898Z[0m [32m INFO[0m [2mactix_server::server[0m[2m:[0m starting service: "actix-web-service-127.0.0.1:18080", workers: 32, listening on: 127.0.0.1:18080
+[2m2026-11-24T02:55:36.345646Z[0m [32m INFO[0m [2msqlx_core::pool::inner[0m[2m:[0m ping on idle connection returned error [3merror[0m[2m=[0merror communicating with database: 远程主机强迫关闭了一个现有的连接。 (os error 10054)
+[2m2026-11-24T02:55:41.347282Z[0m [31mERROR[0m [2mmarkdown_cloud_editor::error[0m[2m:[0m unhandled internal error [3merror[0m[2m=[0mpool timed out while waiting for an open connection
+[2m2026-11-24T02:55:41.385199Z[0m [32m INFO[0m [2msqlx_core::pool::inner[0m[2m:[0m ping on idle connection returned error [3merror[0m[2m=[0merror communicating with database: 远程主机强迫关闭了一个现有的连接。 (os error 10054)
+[2m2026-11-24T02:55:46.399090Z[0m [31mERROR[0m [2mmarkdown_cloud_editor::routes::health[0m[2m:[0m health check: database probe failed [3merror[0m[2m=[0mpool timed out while waiting for an open connection
+

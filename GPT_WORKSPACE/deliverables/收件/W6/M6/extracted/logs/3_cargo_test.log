@@ -1,0 +1,242 @@
+   Compiling actix-rt v2.15.0
+   Compiling actix-server v2.10.0
+   Compiling actix-web v4.17.0
+   Compiling markdown-cloud-editor v0.1.0 (C:\Users\ROG\Desktop\M6_W6_work\work)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.81s
+     Running unittests src\lib.rs (target\debug\deps\markdown_cloud_editor-1a59db14bc07b4d3.exe)
+
+running 98 tests
+test auth::dto::tests::只有密码不匹配才算客户端责任 ... ok
+test auth::dto::tests::合法文档id解析成功 ... ok
+test auth::dto::tests::密码不因首尾空格被裁剪 ... ok
+test auth::dto::tests::注册校验返回归一化用户名 ... ok
+test auth::dto::tests::用户名拒绝非法字符 ... ok
+test auth::dto::tests::用户名长度按字符计 ... ok
+test auth::dto::tests::登录拒绝空密码 ... ok
+test auth::password::tests::损坏哈希返回错误且不崩溃 ... ok
+test auth::dto::tests::超长密码被拒绝 ... ok
+test auth::password::tests::非法参数被拒绝 ... ok
+test auth::dto::tests::用户名去空白并转小写 ... ok
+test auth::password::tests::密码策略检查 ... ok
+test auth::dto::tests::用户名错误带字段名便于前端定位 ... ok
+test auth::token::tests::ttl为0时签发不panic且当秒到期 ... ok
+test auth::password::tests::空串与残缺串不触发panic ... ok
+test auth::password::tests::缺salt或缺hash的串报格式错而非密码错 ... ok
+test auth::dto::tests::非法文档id报400且指出字段 ... ok
+test auth::dto::tests::密码长度按字节而非字符 ... ok
+test auth::token::tests::ttl三道闸各自拦下越界值 ... ok
+test auth::token::tests::ttl取i64max返回错误不panic ... ok
+test auth::dto::tests::登录不因密码过短而拒绝 ... ok
+test auth::token::tests::ttl取u64max返回错误不panic ... ok
+test auth::token::tests::同密钥hs384签名的token被拒绝 ... ok
+test auth::token::tests::正确签名但aud错误被拒绝 ... ok
+test auth::token::tests::exp为零被判过期而非无效 ... ok
+test auth::token::tests::不同签发者的token被拒绝 ... ok
+test auth::token::tests::空sub被拒绝 ... ok
+test auth::token::tests::签发返回的过期时间与ttl一致 ... ok
+test auth::token::tests::签发后可验回原载荷 ... ok
+test auth::token::tests::签名正确但缺aud被拒绝 ... ok
+test auth::token::tests::签名正确但缺exp被拒绝 ... ok
+test auth::token::tests::签名正确但缺iss被拒绝 ... ok
+test auth::token::tests::算法降级攻击被阻断 ... ok
+test auth::token::tests::篡改签名段失败 ... ok
+test auth::token::tests::篡改载荷后验签失败 ... ok
+test auth::token::tests::载荷缺sub字段被拒绝 ... ok
+test auth::token::tests::过期且签名错误的token归类为签名无效 ... ok
+test auth::token::tests::过期token被识别为过期 ... ok
+test auth::token::tests::纯空白sub被拒绝 ... ok
+test auth::token::tests::过期判定按秒边界生效 ... ok
+test auth::token::tests::错误密钥无法验签 ... ok
+test auth::token::tests::非jwt字符串被拒绝 ... ok
+test config::tests::debug输出不含密钥 ... ok
+test config::tests::ttl越界被拒绝 ... ok
+test config::tests::低熵密钥被拒绝 ... ok
+test config::tests::占位密钥被拒绝 ... ok
+test config::tests::合规密钥通过校验 ... ok
+test config::tests::恰好32字节的密钥通过 ... ok
+test config::tests::规范常量与文档一致 ... ok
+test config::tests::过短密钥被拒绝 ... ok
+test config::tests::非法监听地址被拒绝 ... ok
+test error::tests::不可见资源返回404而非403 ... ok
+test error::tests::其他错误不带details字段 ... ok
+test error::tests::每个错误码映射到规范要求的状态码 ... ok
+test error::tests::内部错误不泄露细节 ... ok
+test error::tests::版本冲突携带server_version ... ok
+test error::tests::错误码字面量符合规范 ... ok
+test error::tests::限流错误带retry_after值 ... ok
+test middleware::tests::作用域内取到传入的请求id ... ok
+test middleware::tests::作用域结束后恢复原值 ... ok
+test middleware::tests::新请求id为合法uuid_v4 ... ok
+test middleware::tests::未安装中间件时回退占位值 ... ok
+test middleware::tests::每次生成互不相同 ... ok
+test middleware::tests::清理过期客户端并保留活跃客户端的限额 ... ok
+test repositories::users::tests::唯一约束识别依赖错误码与约束名 ... ok
+test repositories::users::tests::时间戳格式化为utc_rfc3339 ... ok
+test routes::auth::tests::参数不兼容映射为500 ... ok
+test routes::auth::tests::哈希串损坏映射为500而非401 ... ok
+test routes::auth::tests::密码不匹配映射为401 ... ok
+test routes::auth::tests::未认证映射为401 ... ok
+test services::document_service::tests::创建文档时显式传入空标题被拒绝 ... ok
+test services::document_service::tests::分页默认值与越界校验 ... ok
+test services::document_service::tests::全角空格与空白字符修剪后为空被拒绝 ... ok
+test services::document_service::tests::创建文档时省略标题回退为未命名文档 ... ok
+test services::document_service::tests::创建时全角空白标题被拒绝 ... ok
+test services::document_service::tests::创建显式空串标题被拒绝 ... ok
+test services::document_service::tests::恰好255字符标题通过校验 ... ok
+test services::document_service::tests::期望版本号合法上界通过 ... ok
+test services::document_service::tests::期望版本号小于1被拒绝 ... ok
+test services::document_service::tests::多字节正文恰好262144字节通过 ... ok
+test services::document_service::tests::正常标题校验通过且去除首尾空白 ... ok
+test routes::auth::tests::只信任指定直连代理且各源地址独立限流 ... ok
+test services::document_service::tests::空正文通过校验 ... ok
+test services::document_service::tests::正文边界与超限测试 ... ok
+test services::document_service::tests::超过255字符标题被拒绝 ... ok
+test services::document_service::tests::长标题带空白先修剪再计数 ... ok
+test services::document_service::tests::正文首尾空白计入字节限制 ... ok
+test auth::password::tests::校验上限可按需收紧 ... ok
+test auth::password::tests::摘要被截断时判为格式错而非密码错误 ... ok
+test auth::password::tests::损坏格式与不兼容参数都不得归类为密码不匹配 ... ok
+test auth::password::tests::版本标签与摘要不一致时表现为密码不匹配_已知局限 ... ok
+test auth::password::tests::错误密码被拒绝且归类为不匹配 ... ok
+test auth::password::tests::正确密码验证通过 ... ok
+test auth::password::tests::同一密码两次哈希不同但都能验证 ... ok
+test auth::password::tests::校验沿用哈希串自带参数 ... ok
+test auth::password::tests::空密码与前后空格都归为密码不匹配 ... ok
+test auth::password::tests::不同参数生成的哈希互不通用 ... ok
+test auth::password::tests::校验沿用哈希串自带的算法与版本 ... ok
+
+test result: ok. 98 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.46s
+
+     Running unittests src\main.rs (target\debug\deps\markdown_cloud_editor-3c2d18a8ec55ca9d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\auth_db.rs (target\debug\deps\auth_db-f0437cfaaa4178e3.exe)
+
+running 8 tests
+test 密码哈希以argon2id_phc格式存储 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 密码错误与用户不存在返回完全相同的401 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 数据库约束拦下超长正文 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 数据库约束拦下非法用户名 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 注册响应不含任何敏感字段 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 注册成功返回201与可用token ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 用户名归一化后重名返回409 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 登录成功返回200 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+
+test result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\auth_w4.rs (target\debug\deps\auth_w4-b6652f6a8aa417ff.exe)
+
+running 16 tests
+test 库中哈希损坏返回500而非401 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 正确密码登录返回200 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 重复用户名返回409 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 错误响应不带内部细节且request_id与响应头一致 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 错误密码与用户不存在返回同形401 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 验证上限经配置传入真实登录路径 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 限流器剩余秒数不超过窗口长度 ... ok
+test w3空白sub与极端ttl修复仍有效 ... ok
+test 登录第六次请求触发429并带retry_after ... ok
+test 不同ip限流互相独立 ... ok
+test 注册与登录共用同一限流器预算 ... ok
+test 默认上限拦下超大m且不分配内存 ... ok
+test 验证上限恰好合法与恰好越界 ... ok
+test phc损坏与参数不兼容保持独立错误 ... ok
+test 参数越界优先于密码比对 ... ok
+test 限流窗口到期后恢复 ... ok
+
+test result: ok. 10 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 1.12s
+
+     Running tests\document_api.rs (target\debug\deps\document_api-abf321456b904e1a.exe)
+
+running 20 tests
+test 不存在的文档返回404 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 两用户数据互相隔离 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 分页与排序稳定 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 分页参数越界返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 创建时全角空格标题返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 创建时显式传空标题返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 创建时省略标题使用默认标题 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 删除缺少expected_version查询参数返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 文档crud全流程 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 无token访问文档返回401 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 更新文档时正文原样落库不被修剪 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 更新缺少必填字段返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 标题存修剪后值而正文存原样 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 标题超长返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 正文含首尾空白时原样落库不被修剪 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 正文恰好在上限应通过 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 正文超限返回413 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 用旧版本删除触发409 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 用旧版本更新触发409且带server_version ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 非法token访问文档返回401 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+
+test result: ok. 0 passed; 0 failed; 20 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\document_w4.rs (target\debug\deps\document_w4-7bff2c2c6bb7f082.exe)
+
+running 15 tests
+test m4_01_原始超限修剪后合规的正文创建必须413 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_01_原始超限修剪后合规的正文更新必须413 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_02_u00a0不间断空格标题返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_02_标题修剪后255合法而256非法 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_02_纯普通空格标题返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_03_多字节正文按字节边界 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_03_更新路径正文首尾空白原样落库 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_03_空正文创建路径原样落库 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_03_空正文更新路径原样落库 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_04_删除时期望版本为0返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_04_期望版本为0返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_04_期望版本为负数返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_04_期望版本类型错误返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_04_期望版本超出i32上限返回400 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test m4_01_校验入口直接调用拒绝原始超限正文 ... ok
+
+test result: ok. 1 passed; 0 failed; 14 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\document_w5.rs (target\debug\deps\document_w5-9697cd37c1692649.exe)
+
+running 8 tests
+test nbsp标题返回400且错误码稳定 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 合法正文与空正文在创建和更新路径都原样落库 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 同版本并发更新最多一次写入 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 同版本并发更新重复场次结果稳定 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 超限创建不新增行 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 超限更新后内容与版本维持原值 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 非所有者三种操作均404且不泄漏元数据 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+test 首尾空格加满额正文按原始字节计数被拒413 ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+
+test result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\e2e_full_workflow.rs (target\debug\deps\e2e_full_workflow-2ef981474e6dd7fd.exe)
+
+running 1 test
+test test_full_e2e_multi_tenant_and_optimistic_concurrency_workflow ... ignored, 需要真实 PostgreSQL：设置 TEST_DATABASE_URL 后用 --ignored 运行
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\health_api.rs (target\debug\deps\health_api-520980e147e1cb53.exe)
+
+running 7 tests
+test health_returns_200_when_db_reachable ... ignored, 需要真实 PostgreSQL：先设 TEST_DATABASE_URL 再用 --ignored 运行
+test unknown_route_returns_structured_error ... ok
+test incoming_request_id_is_reused ... ok
+test health_body_leaks_no_database_details ... ok
+test invalid_request_id_falls_back_to_uuid ... ok
+test health_returns_503_when_db_unreachable ... ok
+test response_carries_request_id_header ... ok
+
+test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests\w5_regression.rs (target\debug\deps\w5_regression-9259c56fef04a8fd.exe)
+
+running 3 tests
+test 过期与错误声明token经受保护路由统一401 ... ok
+test 损坏记录分类的固定夹具 ... ok
+test 截断记录复跑分布_mismatch必须为零 ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.82s
+
+
