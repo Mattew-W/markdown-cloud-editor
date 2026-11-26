@@ -1,0 +1,17 @@
+M5 W6 结项验收 · 本机环境记录
+采集日期：2026-11-25 (Asia/Shanghai)
+固定基线：Mattew-W/markdown-cloud-editor main 3373a9e8afbda36daa13cb220655b51cb35f28d9（PR #14）
+
+操作系统：Microsoft Windows NT 10.0.26200.0 (AMD64)
+Node.js：v22.23.2
+npm：10.9.8
+Python：Python 3.13.18
+浏览器（GAC 内置 Chromium）：Chrome 147.0.0.0（UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36）
+
+工具链缺失（本机不具备，相关后端/集成验收未执行）：
+- git：NOT FOUND
+- cargo (Rust)：NOT FOUND
+- psql (PostgreSQL 客户端)：NOT FOUND
+
+前端测试命令：npm ci --prefix frontend；npm test --prefix frontend（node --test "js/tests/*.test.js"）
+测试结果：289 passed / 0 failed / 0 cancelled / 0 skipped / 14 suites / duration 7467.9354 ms / 退出码 0（见 logs/w6-frontend-test.log）

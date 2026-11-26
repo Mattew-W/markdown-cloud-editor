@@ -1,0 +1,119 @@
+{
+  "env": {
+    "innerWidth": 1200,
+    "innerHeight": 900,
+    "outerWidth": 1200,
+    "outerHeight": 900,
+    "dpr": 1,
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+    "dompurify": "3.3.3",
+    "marked": "object"
+  },
+  "states": {
+    "initial": {
+      "badge": "未同步",
+      "badgeClass": "sync-badge",
+      "status": "系统就绪",
+      "storageBannerHidden": true,
+      "storageMessage": "本地备份失败，内容仅存在于内存中。",
+      "conflictHidden": true,
+      "serverVersionText": "",
+      "selStart": 0,
+      "selEnd": 0,
+      "activeEl": ""
+    },
+    "afterLogin": {
+      "badge": "✓ 已同步",
+      "badgeClass": "sync-badge badge-synced",
+      "status": "所有更改已同步至云端",
+      "storageBannerHidden": true,
+      "storageMessage": "本地备份失败，内容仅存在于内存中。",
+      "conflictHidden": true,
+      "serverVersionText": "",
+      "selStart": 13,
+      "selEnd": 13,
+      "activeEl": ""
+    },
+    "dirty": {
+      "badge": "• 等待本地备份",
+      "badgeClass": "sync-badge badge-dirty",
+      "status": "正在准备本地草稿",
+      "storageBannerHidden": true,
+      "storageMessage": "本地备份失败，内容仅存在于内存中。",
+      "conflictHidden": true,
+      "serverVersionText": "",
+      "selStart": 6,
+      "selEnd": 12,
+      "activeEl": "docContent"
+    },
+    "retryWait": {
+      "badge": "⚠️ 等待重试",
+      "badgeClass": "sync-badge badge-retry",
+      "status": "错误: 请求过于频繁",
+      "storageBannerHidden": true,
+      "storageMessage": "本地备份失败，内容仅存在于内存中。",
+      "conflictHidden": true,
+      "serverVersionText": "",
+      "selStart": 6,
+      "selEnd": 12,
+      "activeEl": "docContent",
+      "selStable": true
+    },
+    "conflict": {
+      "badge": "✕ 版本冲突",
+      "badgeClass": "sync-badge badge-conflict",
+      "status": "检测到并发编辑冲突",
+      "storageBannerHidden": true,
+      "storageMessage": "本地备份失败，内容仅存在于内存中。",
+      "conflictHidden": false,
+      "serverVersionText": "v7",
+      "selStart": 6,
+      "selEnd": 12,
+      "activeEl": "docContent",
+      "selStable": true
+    },
+    "storageFailure": {
+      "badge": "✕ 版本冲突",
+      "badgeClass": "sync-badge badge-conflict",
+      "status": "本地备份失败：存储空间不足",
+      "storageBannerHidden": false,
+      "storageMessage": "本地备份失败：存储空间不足。内容目前只在内存中，请立即下载 Markdown，或保持页面不关闭。",
+      "conflictHidden": true,
+      "serverVersionText": "v7",
+      "selStart": 23,
+      "selEnd": 23,
+      "activeEl": "docContent"
+    },
+    "synced": {
+      "badge": "✕ 版本冲突",
+      "badgeClass": "sync-badge badge-conflict",
+      "status": "本地备份失败：存储空间不足",
+      "storageBannerHidden": false,
+      "storageMessage": "本地备份失败：存储空间不足。内容目前只在内存中，请立即下载 Markdown，或保持页面不关闭。",
+      "conflictHidden": true,
+      "serverVersionText": "v7",
+      "selStart": 23,
+      "selEnd": 23,
+      "activeEl": "docContent"
+    }
+  },
+  "requests": [
+    "POST /api/v1/auth/login {\"username\":\"tester\",\"password\":\"pw12345678\"}",
+    "GET /api/v1/documents?limit=100&offset=0 ",
+    "GET /api/v1/documents/doc-1 ",
+    "PUT /api/v1/documents/doc-1 {\"title\":\"W6 状态复核\",\"content\":\"# 状态复核\\n\\n修改后的正文。\",\"expected_version\":5}",
+    "PUT /api/v1/documents/doc-1 {\"title\":\"W6 状态复核\",\"content\":\"# 状态复核\\n\\n修改后的正文。\",\"expected_version\":5}"
+  ],
+  "conflictButtons": [
+    {
+      "id": "btnConflictReload",
+      "text": "重新载入云端最新版本 (推荐)",
+      "exists": true
+    },
+    {
+      "id": "btnConflictOverwrite",
+      "text": "强制以本地内容覆盖云端",
+      "exists": true
+    }
+  ]
+}

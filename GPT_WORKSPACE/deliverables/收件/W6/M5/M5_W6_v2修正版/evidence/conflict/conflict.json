@@ -1,0 +1,52 @@
+{
+  "conflictShown": {
+    "hidden": false,
+    "sv": "v7",
+    "lv": "v5",
+    "badge": "✕ 版本冲突"
+  },
+  "overwrite": {
+    "puts": [
+      {
+        "url": "/api/v1/documents/doc-1",
+        "body": {
+          "title": "冲突复核",
+          "content": "# 冲突复核\n\n本地修改后的正文。",
+          "expected_version": 7
+        }
+      }
+    ],
+    "after": {
+      "hidden": true,
+      "badge": "✓ 已同步",
+      "status": "所有更改已同步至云端",
+      "docInfo": "版本: v8"
+    }
+  },
+  "conflict2": {
+    "hidden": false,
+    "sv": "v7"
+  },
+  "reload": {
+    "gets": [
+      "/api/v1/documents/doc-1"
+    ],
+    "putsAfterReload": [
+      {
+        "url": "/api/v1/documents/doc-1",
+        "body": {
+          "title": "冲突复核",
+          "content": "# 冲突复核\n\n再次本地修改。",
+          "expected_version": 8
+        }
+      }
+    ],
+    "after": {
+      "hidden": true,
+      "badge": "✓ 已同步",
+      "status": "已采用云端版本",
+      "content": "# 冲突复核\n\n云端正文。",
+      "docInfo": "版本: v9"
+    }
+  }
+}

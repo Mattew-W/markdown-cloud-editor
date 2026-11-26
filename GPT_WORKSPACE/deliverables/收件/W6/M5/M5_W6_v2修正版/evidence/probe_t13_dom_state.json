@@ -1,0 +1,122 @@
+{
+  "url": "http://127.0.0.1:8137/index.html",
+  "innerWidth": 1200,
+  "innerHeight": 900,
+  "outerWidth": 1200,
+  "outerHeight": 900,
+  "dpr": 1,
+  "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+  "vendorLoaded": {
+    "marked": "object",
+    "markedVersion": "n/a",
+    "dompurify": "function",
+    "dompurifyVersion": "3.3.3"
+  },
+  "nodeRefs": {
+    "contentInitialConnected": true
+  },
+  "before": {
+    "activeElementId": "docContent",
+    "selectionStart": 8,
+    "selectionEnd": 15,
+    "valueLength": 25
+  },
+  "afterInput": {
+    "activeElementId": "docContent",
+    "selectionStart": 8,
+    "selectionEnd": 15,
+    "sameNode": true,
+    "previewHasScript": false,
+    "previewText": "中文标题测试\n第一段正文内容，用于选区验证。\n"
+  },
+  "composition": {
+    "during": {
+      "activeElementId": "docContent",
+      "selectionStart": 34,
+      "selectionEnd": 34,
+      "valueTail": "验证。zhong'wen",
+      "previewTail": "段正文内容，用于选区验证。\n"
+    },
+    "afterEnd": {
+      "activeElementId": "docContent",
+      "selectionStart": 27,
+      "selectionEnd": 27,
+      "sameNode": true,
+      "valueTail": "于选区验证。中文",
+      "previewTail": "段正文内容，用于选区验证。\n"
+    }
+  },
+  "stateStability": {
+    "initialSelection": {
+      "s": 5,
+      "e": 11
+    },
+    "perState": [
+      {
+        "tried": "DIRTY",
+        "sameNode": true,
+        "selStart": 5,
+        "selEnd": 11,
+        "activeEl": "docContent",
+        "badgeText": "未同步"
+      },
+      {
+        "tried": "SAVING",
+        "sameNode": true,
+        "selStart": 5,
+        "selEnd": 11,
+        "activeEl": "docContent",
+        "badgeText": "未同步"
+      },
+      {
+        "tried": "SYNCED",
+        "sameNode": true,
+        "selStart": 5,
+        "selEnd": 11,
+        "activeEl": "docContent",
+        "badgeText": "未同步"
+      },
+      {
+        "tried": "RETRY_WAIT",
+        "sameNode": true,
+        "selStart": 5,
+        "selEnd": 11,
+        "activeEl": "docContent",
+        "badgeText": "未同步"
+      },
+      {
+        "tried": "CONFLICT",
+        "sameNode": true,
+        "selStart": 5,
+        "selEnd": 11,
+        "activeEl": "docContent",
+        "badgeText": "未同步"
+      },
+      {
+        "tried": "INVALID",
+        "sameNode": true,
+        "selStart": 5,
+        "selEnd": 11,
+        "activeEl": "docContent",
+        "badgeText": "未同步"
+      },
+      {
+        "tried": "AUTH_REQUIRED",
+        "sameNode": true,
+        "selStart": 5,
+        "selEnd": 11,
+        "activeEl": "docContent",
+        "badgeText": "未同步"
+      }
+    ]
+  },
+  "title": {
+    "injected": "<img src=x onerror=alert(9)>",
+    "inputTagName": "INPUT",
+    "valueIsLiteral": true,
+    "inputChildElementCount": 0,
+    "previewHasImgOnError": false,
+    "docListHtml": "\n        <li class=\"doc-item placeholder\">正在加载文档列表…</li>\n      "
+  },
+  "finalContentValue": "# 中文标题测试\n\n第一段正文内容，用于选区验证。中文"
+}
